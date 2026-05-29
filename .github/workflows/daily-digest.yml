@@ -5,6 +5,9 @@ on:
   schedule:
     - cron: "0 6,15 * * *"
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   send-digest:
     runs-on: ubuntu-latest
