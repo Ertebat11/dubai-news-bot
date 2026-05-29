@@ -1,0 +1,89 @@
+sources:
+  - name: Gulf News UAE
+    type: page
+    url: https://gulfnews.com/uae
+    include_paths: [/uae]
+    exclude_url_terms: [component]
+    weight: 5
+    enabled: true
+
+  - name: Khaleej Times UAE
+    type: page
+    url: https://www.khaleejtimes.com/uae
+    include_paths: [/uae, /life-and-living]
+    weight: 5
+    enabled: true
+
+  - name: The National UAE
+    type: page
+    url: https://www.thenationalnews.com/uae/
+    include_paths: [/news/uae]
+    require_url_date: true
+    weight: 5
+    enabled: true
+
+  - name: ARN News Centre UAE
+    url: https://www.arnnewscentre.ae/news/uae/feed.xml
+    weight: 4
+    enabled: true
+
+  - name: Barq UAE Arabic
+    url: https://www.uaebarq.ae/ar/feed/
+    weight: 5
+    enabled: true
+
+  - name: Lovin Dubai
+    type: page
+    url: https://dubai.lovin.co/
+    include_paths: [/p]
+    weight: 3
+    enabled: true
+
+  - name: Dubai One / Emirates 24|7 UAE
+    url: https://www.emirates247.com/rss/mobile/v2/uae.rss
+    weight: 3
+    enabled: true
+
+keywords:
+  - label: breaking/public safety
+    weight: 5
+    terms: [breaking, urgent, alert, fire, crash, accident, crime, arrest, court, police, evacuation, عاجل, شرطة, حريق, حادث]
+
+  - label: viral/social buzz
+    weight: 4
+    terms: [viral, trending, controversy, backlash, outrage, debate, scandal, shocked, sparks, فيديو, جدل, ترند]
+
+  - label: celebrity/luxury
+    weight: 3
+    terms: [celebrity, influencer, luxury, billionaire, mansion, yacht, fashion, restaurant, hotel, famous, مشاهير, فاخرة]
+
+  - label: Dubai life impact
+    weight: 4
+    terms: [rent, real estate, traffic, salik, metro, visa, golden visa, school, weather, flight, airport, mall, غرامة, تأشيرة, عقار, طقس]
+
+  - label: culture/events
+    weight: 3
+    terms: [launch, opening, pop-up, popup, concert, festival, exhibition, nightlife, brunch, افتتاح, مهرجان, فعالية]
+
+  - label: money/business
+    weight: 2
+    terms: [deal, acquisition, IPO, startup, property, jobs, salary, investment, crypto, اقتصاد, استثمار]
+
+require_any_terms:
+  - Dubai
+  - UAE
+  - Emirates
+  - Abu Dhabi
+  - Sharjah
+  - Ajman
+  - Ras Al Khaimah
+  - Fujairah
+  - Umm Al Quwain
+  - دبي
+  - الإمارات
+  - الامارات
+  - أبوظبي
+  - الشارقة
+  - عجمان
+  - رأس الخيمة
+  - الفجيرة
