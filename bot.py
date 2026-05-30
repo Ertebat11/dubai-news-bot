@@ -1255,6 +1255,26 @@ def format_daily_report(clusters: list[StoryCluster], conn: sqlite3.Connection |
     return "\n".join(lines)
 
 
+def format_heartbeat(clusters: list[StoryCluster], candidates_count: int, conn: sqlite3.Connection | None = None) -> str:
+    unseen = [cluster for cluster in clusters if not (seen_cluster(conn, cluster) if conn else False)]
+    lines = [
+        "<b>Dubai Magazine Radar Status</b>",
+        "Bot is alive and checked the sources today.",
+        f"Stories scanned: {candidates_count}",
+        f"Candidate story groups: {len(clusters)}",
+        f"New unsent groups: {len(unseen)}",
+        "",
+        "<b>Top signals</b>",
+    ]
+    for idx, cluster in enumerate(clusters[:5], 1):
+        editorial = ai_editorial_package(conn, cluster)
+        lines.append(f"{idx}. {html.escape(editorial['headline'])} | score {cluster.score} | {', '.join(cluster.tags[:3])}")
+    if not clusters:
+        lines.append("No strong stories found in the current lookback window.")
+    lines.extend(["", "Breaking alerts only send when a story clears the breaking threshold."])
+    return "\n".join(lines)
+
+
 def help_text() -> str:
     return "\n".join(
         [
@@ -1453,8 +1473,8 @@ def main() -> int:
     parser.add_argument("--hours", type=int, default=int(os.getenv("LOOKBACK_HOURS", "24")))
     parser.add_argument("--limit", type=int, default=int(os.getenv("MAX_ITEMS", "8")))
     parser.add_argument("--min-score", type=int, default=int(os.getenv("MIN_SCORE", "7")))
-    parser.add_argument("--breaking-score", type=int, default=int(os.getenv("BREAKING_SCORE", "16")))
-    parser.add_argument("--mode", choices=["breaking", "digest", "report", "all"], default=os.getenv("BOT_MODE", "breaking"))
+    parser.add_argument("--breaking-score", type=int, default=int(os.getenv("BREAKING_SCORE", "14")))
+    parser.add_argument("--mode", choices=["breaking", "digest", "report", "heartbeat", "all"], default=os.getenv("BOT_MODE", "breaking"))
     parser.add_argument("--category", default=os.getenv("DIGEST_CATEGORY"))
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--discover-chat", action="store_true")
@@ -1491,6 +1511,9 @@ def main() -> int:
     fresh = [cluster for cluster in clusters if not seen_cluster(conn, cluster)][: args.limit]
 
     if args.dry_run:
+        if args.mode == "heartbeat":
+            print(format_heartbeat(clusters, len(candidates), conn))
+            return 0
         for cluster in fresh:
             print(f"[{cluster.score}] {cluster.title}")
             print(f"    sources: {', '.join(cluster.sources)}")
@@ -1511,6 +1534,20 @@ def main() -> int:
     if not token or not chat_id:
         print("Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID, or run --dry-run.", file=sys.stderr)
         return 2
+
+    if args.mode == "heartbeat":
+        telegram_call(
+            token,
+            "sendMessage",
+            {
+                "chat_id": chat_id,
+                "text": format_heartbeat(clusters, len(candidates), conn),
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True,
+            },
+        )
+        print(f"Sent heartbeat with {len(clusters)} candidate clusters.")
+        return 0
 
     if args.mode == "digest":
         if fresh:

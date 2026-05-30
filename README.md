@@ -64,6 +64,7 @@ Useful commands:
 ```bash
 python bot.py --mode breaking --dry-run
 python bot.py --mode digest --dry-run
+python bot.py --mode heartbeat --dry-run
 python bot.py --process-updates
 ```
 
@@ -100,9 +101,10 @@ Every story also includes a Farsi brief with the headline, story context, and a 
    - `TELEGRAM_BOT_TOKEN`
    - `TELEGRAM_CHAT_ID`
 3. Enable Actions.
-4. The workflow in `.github/workflows/news-bot.yml` runs breaking alerts every 30 minutes and processes feedback/social links.
-5. The workflow in `.github/workflows/daily-digest.yml` sends a digest twice per day.
-6. The workflow in `.github/workflows/daily-report.yml` sends a daily intelligence report.
+4. The workflow in `.github/workflows/news-bot.yml` runs breaking alerts at minute 7 and 37 each hour and processes feedback/social links.
+5. The workflow in `.github/workflows/daily-digest.yml` sends a digest at about 10:07 AM and 7:07 PM Dubai time.
+6. The workflow in `.github/workflows/daily-report.yml` sends a daily intelligence report at about 8:37 AM Dubai time.
+7. The workflow in `.github/workflows/daily-heartbeat.yml` sends one daily alive/status message at about 1:17 PM Dubai time even if no breaking alert was sent.
 
 Free editorial mode:
 
