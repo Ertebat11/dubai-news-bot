@@ -605,6 +605,11 @@ def farsi_source_name(source: str) -> str:
     return FARSI_SOURCE_NAMES.get(source, source)
 
 
+def farsi_sources_line(cluster: StoryCluster, limit: int | None = None) -> str:
+    sources = cluster.sources[:limit] if limit else cluster.sources
+    return "، ".join(farsi_source_name(source) for source in sources)
+
+
 def farsi_digits(value: str) -> str:
     return value.translate(str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹"))
 
@@ -826,11 +831,34 @@ def image_suggestion(cluster: StoryCluster) -> str:
 
 
 def image_prompt(cluster: StoryCluster) -> str:
-    suggestion = image_suggestion(cluster).replace("HD original image idea:", "").strip()
+    text = f"{cluster.title} {cluster.best_story.summary}".lower()
+    tags = set(cluster.tags)
+    if re.search(r"fake|fraud|scam|booking scam|fake booking|کلاهبرداری|احتيال|مزيف", text, re.I):
+        scene = "نمای نزدیک از موبایلی با صفحه رزرو سفر به شکل عمومی، کنار پاسپورت و چمدان، با نور طبیعی آپارتمان در دبی"
+    elif re.search(r"ebola|ابولا|health|public health", text, re.I):
+        scene = "فضای تمیز فرودگاه یا کلینیک در امارات، یک مسافر با ماسک، پاسپورت و مانیتور هشدار سلامت به شکل عمومی"
+    elif re.search(r"(return|returned|found|honesty|cash|money|أمانت|عثر|سلم|سلّم)", text, re.I):
+        scene = "نمای محترمانه از دستی که کیف پول یا پاکت پول را روی کانتر خدمات پلیس تحویل می دهد، بدون نمایش چهره"
+    elif re.search(r"solidarity|condolence|condemns|foreign|minister|تعزي|تتضامن|يدين", text, re.I):
+        scene = "پرچم امارات کنار میز دیپلماتیک ساده با گل یا دفتر تسلیت، نور نرم و محترمانه"
+    elif "weather/traffic" in tags:
+        scene = "خط آسمان دبی در یک روز آفتابی با حس گرما، جاده یا ساحل در پیش زمینه، سبک عکس خبری تمیز"
+    elif "rules" in tags:
+        scene = "چیدمان مینیمال از پاسپورت، کارت حمل ونقل یا پارکینگ و میز اداری تمیز، بدون اطلاعات واقعی شخصی"
+    elif "business" in tags:
+        scene = "منطقه تجاری مدرن دبی با بازتاب نمودارهای مالی روی شیشه، سبک مجله ای حرفه ای"
+    elif "lifestyle" in tags:
+        scene = "صحنه سبک زندگی دبی با میز کافه، نور شهر، حس رستوران یا رویداد آخر هفته، ظاهر شیک و گرم"
+    elif "viral" in tags:
+        scene = "صحنه پویا از خیابان دبی با موبایلی که یک لحظه شهری عمومی را ضبط می کند، پرانرژی و مناسب شبکه اجتماعی"
+    elif "crime" in tags:
+        scene = "تصویر خنثی امنیت عمومی با خیابان دبی در پس زمینه، نورهای ملایم هشدار و اعلان موبایل، بدون صحنه جرم"
+    else:
+        scene = "تصویر تمیز و مجله ای از دبی که با موضوع خبر ارتباط دارد و حس مدرن و خبری داشته باشد"
     return (
-        f"{suggestion} Create a high-quality HD editorial social media image, vertical 4:5 aspect ratio, "
-        "premium Dubai online magazine style, realistic but original, sharp details, natural lighting, "
-        "no text overlay, no logos, no watermarks, no copied news photo, no recognizable private individuals."
+        f"{scene}. تصویر با کیفیت بالا و اچ دی برای پست شبکه اجتماعی بساز؛ نسبت عمودی ۴:۵، سبک مجله آنلاین دبی، "
+        "واقع گرایانه اما کاملا اورجینال، جزئیات شارپ، نور طبیعی، بدون متن روی تصویر، بدون لوگو، بدون واترمارک، "
+        "بدون کپی از عکس خبر و بدون چهره قابل شناسایی افراد عادی."
     )
 
 
@@ -892,14 +920,14 @@ def copy_ready_post_block(cluster: StoryCluster) -> str:
 def priority_label(cluster: StoryCluster) -> str:
     tags = set(cluster.tags)
     if cluster.score >= 18 or len(cluster.sources) >= 3:
-        return "POST NOW"
+        return "اولویت بالا"
     if "viral" in tags and cluster.score >= 14:
-        return "VIRAL POTENTIAL"
+        return "پتانسیل وایرال"
     if "breaking" in tags or "weather/traffic" in tags or "crime" in tags:
-        return "POST TODAY"
+        return "مناسب امروز"
     if "business" in tags or "rules" in tags:
-        return "EXPLAINER"
-    return "SAVE FOR ROUNDUP"
+        return "مناسب توضیح کوتاه"
+    return "مناسب راندآپ"
 
 
 def why_care(cluster: StoryCluster) -> str:
@@ -1206,76 +1234,59 @@ def feedback_keyboard(cluster: StoryCluster) -> dict[str, Any]:
     return {
         "inline_keyboard": [
             [
-                {"text": "Useful", "callback_data": f"fb:{cluster.key}:useful"},
-                {"text": "Boring", "callback_data": f"fb:{cluster.key}:boring"},
-                {"text": "Too late", "callback_data": f"fb:{cluster.key}:late"},
-                {"text": "More", "callback_data": f"fb:{cluster.key}:more"},
+                {"text": "مفید", "callback_data": f"fb:{cluster.key}:useful"},
+                {"text": "کم اهمیت", "callback_data": f"fb:{cluster.key}:boring"},
+                {"text": "دیر", "callback_data": f"fb:{cluster.key}:late"},
+                {"text": "بیشتر", "callback_data": f"fb:{cluster.key}:more"},
             ],
             [
-                {"text": "Approve", "callback_data": f"act:{cluster.key}:approve"},
-                {"text": "Skip", "callback_data": f"act:{cluster.key}:skip"},
-                {"text": "Rewrite", "callback_data": f"act:{cluster.key}:rewrite"},
-                {"text": "Later", "callback_data": f"act:{cluster.key}:later"},
+                {"text": "تایید", "callback_data": f"act:{cluster.key}:approve"},
+                {"text": "رد", "callback_data": f"act:{cluster.key}:skip"},
+                {"text": "بازنویسی", "callback_data": f"act:{cluster.key}:rewrite"},
+                {"text": "بعدا", "callback_data": f"act:{cluster.key}:later"},
             ]
         ]
     }
 
 
 def format_cluster(cluster: StoryCluster, conn: sqlite3.Connection | None = None) -> str:
-    best = cluster.best_story
-    reasons = ", ".join(cluster.reasons) if cluster.reasons else "new"
-    tags = ", ".join(cluster.tags)
-    summary = f"\n\n{html.escape(best.summary)}" if best.summary else ""
     editorial = ai_editorial_package(conn, cluster)
-    source_line = ", ".join(cluster.sources)
+    title, _, _ = farsi_title_and_summary(cluster)
+    source_line = farsi_sources_line(cluster)
     links = "\n".join(
         f"{idx + 1}. <a href=\"{html.escape(link)}\">{html.escape(urlparse(link).netloc)}</a>"
         for idx, link in enumerate(cluster.links[:4])
     )
     return (
-        f"<b>{html.escape(cluster.title)}</b>\n"
-        f"{html.escape(source_line)} | score {cluster.score} | {html.escape(tags)}\n"
-        f"{html.escape(reasons)}"
-        f"{summary}\n\n"
-        f"<b>Caption:</b> {html.escape(editorial['caption'])}\n\n"
-        f"<b>Farsi:</b> {html.escape(editorial['farsi'])}\n\n"
-        f"<b>Persian social:</b>\n{html.escape(editorial['persian_social'])}\n\n"
-        f"<b>Copy-ready post:</b>\n{html.escape(editorial['copy_ready'])}\n\n"
-        f"<b>Priority:</b> {html.escape(editorial['priority'])}\n"
-        f"<b>Post idea:</b> {html.escape(editorial['post_idea'])}\n"
-        f"<b>Suggested post image:</b> {html.escape(editorial['image_suggestion'])}\n"
-        f"<b>Image prompt:</b> {html.escape(editorial['image_prompt'])}\n"
-        f"<b>Why care:</b> {html.escape(editorial['why_care'])}\n"
-        f"<b>Calendar:</b> {html.escape(editorial['calendar_slot'])}\n\n"
-        f"<b>Article image:</b> {html.escape(cluster_image_url(cluster) or 'No image found')}\n\n"
+        f"<b>{html.escape(title)}</b>\n"
+        f"منبع: {html.escape(source_line)}\n\n"
+        f"{html.escape(editorial['farsi'])}\n\n"
+        f"<b>پک کپشن فارسی:</b>\n{html.escape(editorial['persian_social'])}\n\n"
+        f"<b>آماده کپی برای پست:</b>\n{html.escape(editorial['copy_ready'])}\n\n"
+        f"<b>لینک خبر:</b>\n"
         f"{links}"
     )
 
 
 def format_digest(clusters: list[StoryCluster], conn: sqlite3.Connection | None = None) -> str:
     lines = [
-        "<b>Dubai Magazine Radar</b>",
-        f"{len(clusters)} strongest stories found",
+        "<b>رادار مجله دبی</b>",
+        f"{farsi_digits(str(len(clusters)))} خبر مهم پیدا شد",
         "",
     ]
     for idx, cluster in enumerate(clusters, 1):
         best = cluster.best_story
         editorial = ai_editorial_package(conn, cluster)
-        source_line = ", ".join(cluster.sources[:3])
-        tags = ", ".join(cluster.tags[:3])
+        title, _, _ = farsi_title_and_summary(cluster)
+        source_line = farsi_sources_line(cluster, 3)
         lines.extend(
             [
-                f"<b>{idx}. {html.escape(editorial['headline'])}</b>",
-                f"{html.escape(source_line)} | score {cluster.score} | {html.escape(tags)} | {html.escape(editorial['priority'])}",
-                f"Caption: {html.escape(editorial['caption'])}",
-                f"Farsi: {html.escape(editorial['farsi'])}",
-                f"Persian social: {html.escape(editorial['persian_social'])}",
-                f"Copy-ready: {html.escape(editorial['copy_ready'])}",
-                f"Idea: {html.escape(editorial['post_idea'])}",
-                f"Image idea: {html.escape(editorial['image_suggestion'])}",
-                f"Image prompt: {html.escape(editorial['image_prompt'])}",
-                f"Calendar: {html.escape(editorial['calendar_slot'])}",
-                f"<a href=\"{html.escape(best.link)}\">Open lead source</a>",
+                f"<b>{farsi_digits(str(idx))}. {html.escape(title)}</b>",
+                f"منبع: {html.escape(source_line)}",
+                html.escape(editorial["farsi"]),
+                f"<b>پک کپشن فارسی:</b>\n{html.escape(editorial['persian_social'])}",
+                f"<b>آماده کپی برای پست:</b>\n{html.escape(editorial['copy_ready'])}",
+                f"<a href=\"{html.escape(best.link)}\">لینک خبر</a>",
                 "",
             ]
         )
@@ -1284,25 +1295,23 @@ def format_digest(clusters: list[StoryCluster], conn: sqlite3.Connection | None 
 
 def format_today(clusters: list[StoryCluster], conn: sqlite3.Connection | None = None, limit: int = 5) -> str:
     lines = [
-        "<b>Today Post Plan</b>",
-        "Top stories to post now or prepare for today.",
+        "<b>برنامه پست امروز</b>",
+        "بهترین خبرها برای آماده کردن پست امروز.",
         "",
     ]
     for idx, cluster in enumerate(clusters[:limit], 1):
         best = cluster.best_story
         editorial = ai_editorial_package(conn, cluster)
-        source_line = ", ".join(cluster.sources[:3])
-        tags = ", ".join(cluster.tags[:3])
+        title, _, _ = farsi_title_and_summary(cluster)
+        source_line = farsi_sources_line(cluster, 3)
         lines.extend(
             [
-                f"<b>{idx}. {html.escape(editorial['priority'])}: {html.escape(editorial['headline'])}</b>",
-                f"{html.escape(source_line)} | score {cluster.score} | {html.escape(tags)}",
-                f"<b>Persian</b>\n{html.escape(editorial['farsi'])}",
-                f"<b>Persian social</b>\n{html.escape(editorial['persian_social'])}",
-                f"<b>Copy-ready post</b>\n{html.escape(editorial['copy_ready'])}",
-                f"<b>Image prompt</b>\n{html.escape(editorial['image_prompt'])}",
-                f"<b>Post idea:</b> {html.escape(editorial['post_idea'])}",
-                f"<a href=\"{html.escape(best.link)}\">Open lead source</a>",
+                f"<b>{farsi_digits(str(idx))}. {html.escape(title)}</b>",
+                f"منبع: {html.escape(source_line)}",
+                html.escape(editorial["farsi"]),
+                f"<b>پک کپشن فارسی:</b>\n{html.escape(editorial['persian_social'])}",
+                f"<b>آماده کپی برای پست:</b>\n{html.escape(editorial['copy_ready'])}",
+                f"<a href=\"{html.escape(best.link)}\">لینک خبر</a>",
                 "",
             ]
         )
@@ -1319,7 +1328,7 @@ def send_cluster(token: str, chat_id: str, cluster: StoryCluster, conn: sqlite3.
                 {
                     "chat_id": chat_id,
                     "photo": image_url,
-                    "caption": html.escape(clean_text(cluster.title, 900)),
+                    "caption": html.escape(clean_text(farsi_title_and_summary(cluster)[0], 900)),
                     "parse_mode": "HTML",
                 },
             )
@@ -1344,30 +1353,27 @@ def send_today(token: str, chat_id: str, clusters: list[StoryCluster], conn: sql
         "sendMessage",
         {
             "chat_id": chat_id,
-            "text": "<b>Today Post Plan</b>\nTop stories to post now or prepare for today.",
+            "text": "<b>برنامه پست امروز</b>\nبهترین خبرها برای آماده کردن پست امروز.",
             "parse_mode": "HTML",
         },
     )
     for idx, cluster in enumerate(clusters[:limit], 1):
         best = cluster.best_story
         editorial = ai_editorial_package(conn, cluster)
-        source_line = ", ".join(cluster.sources[:3])
-        tags = ", ".join(cluster.tags[:3])
+        title, _, _ = farsi_title_and_summary(cluster)
+        source_line = farsi_sources_line(cluster, 3)
         text = "\n".join(
             [
-                f"<b>{idx}. {html.escape(editorial['priority'])}: {html.escape(editorial['headline'])}</b>",
-                f"{html.escape(source_line)} | score {cluster.score} | {html.escape(tags)}",
+                f"<b>{farsi_digits(str(idx))}. {html.escape(title)}</b>",
+                f"منبع: {html.escape(source_line)}",
                 "",
-                f"<b>Persian</b>\n{html.escape(editorial['farsi'])}",
+                html.escape(editorial["farsi"]),
                 "",
-                f"<b>Persian social</b>\n{html.escape(editorial['persian_social'])}",
+                f"<b>پک کپشن فارسی:</b>\n{html.escape(editorial['persian_social'])}",
                 "",
-                f"<b>Copy-ready post</b>\n{html.escape(editorial['copy_ready'])}",
+                f"<b>آماده کپی برای پست:</b>\n{html.escape(editorial['copy_ready'])}",
                 "",
-                f"<b>Image prompt</b>\n{html.escape(editorial['image_prompt'])}",
-                "",
-                f"<b>Post idea:</b> {html.escape(editorial['post_idea'])}",
-                f"<a href=\"{html.escape(best.link)}\">Open lead source</a>",
+                f"<a href=\"{html.escape(best.link)}\">لینک خبر</a>",
             ]
         )
         telegram_call(
@@ -1439,11 +1445,12 @@ def save_social_links(conn: sqlite3.Connection, urls: list[str], note: str, user
 
 
 def source_status(config: dict[str, Any]) -> str:
-    lines = ["<b>Sources</b>"]
+    lines = ["<b>منابع فعال</b>"]
     for source in config.get("sources", []):
-        status = "on" if source.get("enabled") is not False else "off"
-        mode = source.get("type", "rss")
-        lines.append(f"{html.escape(source.get('name', 'Unknown'))}: {status}, {mode}")
+        status = "فعال" if source.get("enabled") is not False else "غیرفعال"
+        mode = "صفحه" if source.get("type") == "page" else "فید"
+        name = farsi_source_name(source.get("name", "منبع نامشخص"))
+        lines.append(f"{html.escape(name)}: {status}، {mode}")
     return "\n".join(lines)
 
 
@@ -1453,8 +1460,8 @@ def saved_links_text(conn: sqlite3.Connection, limit: int = 10) -> str:
         (limit,),
     ).fetchall()
     if not rows:
-        return "No saved social leads yet. Forward an Instagram, TikTok, or X link to save one."
-    lines = ["<b>Saved Social Leads</b>"]
+        return "هنوز لید اجتماعی ذخیره نشده است. لینک اینستاگرام، تیک تاک یا ایکس را برای بات فوروارد کنید."
+    lines = ["<b>لیدهای اجتماعی ذخیره شده</b>"]
     for row in rows:
         note = clean_text(row[2] or "", 90)
         lines.append(f"{row[0]}. <a href=\"{html.escape(row[1])}\">{html.escape(urlparse(row[1]).netloc)}</a> {html.escape(note)}")
@@ -1464,112 +1471,111 @@ def saved_links_text(conn: sqlite3.Connection, limit: int = 10) -> str:
 def delete_saved_link(conn: sqlite3.Connection, text: str) -> str:
     match = re.search(r"/(?:delete|unsave)\s+(?:saved\s+)?(\d+)", text, re.I)
     if not match:
-        return "Use /delete saved 3 to remove a saved social lead."
+        return "برای حذف، مثلا بنویسید: /delete saved 3"
     cur = conn.execute("DELETE FROM saved_links WHERE id = ?", (int(match.group(1)),))
     conn.commit()
-    return "Deleted saved lead." if cur.rowcount else "Could not find that saved lead."
+    return "لید ذخیره شده حذف شد." if cur.rowcount else "این لید پیدا نشد."
 
 
 def trend_lines(clusters: list[StoryCluster], limit: int = 8) -> list[str]:
     trends = [cluster for cluster in clusters if len(cluster.sources) > 1]
     trends = sorted(trends, key=lambda item: (len(item.sources), item.score), reverse=True)[:limit]
     if not trends:
-        return ["No multi-source trends found yet."]
-    return [
-        f"{idx}. {cluster.title} ({len(cluster.sources)} sources: {', '.join(cluster.sources[:3])})"
-        for idx, cluster in enumerate(trends, 1)
-    ]
+        return ["فعلا ترند چندمنبعی پیدا نشد."]
+    lines = []
+    for idx, cluster in enumerate(trends, 1):
+        title, _, _ = farsi_title_and_summary(cluster)
+        lines.append(
+            f"{farsi_digits(str(idx))}. {title} "
+            f"({farsi_digits(str(len(cluster.sources)))} منبع: {farsi_sources_line(cluster, 3)})"
+        )
+    return lines
 
 
 def content_calendar_lines(clusters: list[StoryCluster], conn: sqlite3.Connection | None = None, limit: int = 6) -> list[str]:
     lines = []
     for idx, cluster in enumerate(clusters[:limit], 1):
-        editorial = ai_editorial_package(conn, cluster)
-        lines.append(f"{idx}. {editorial['calendar_slot']} {editorial['carousel_title']}")
-    return lines or ["No calendar suggestions available yet."]
+        title, _, caption = farsi_title_and_summary(cluster)
+        lines.append(f"{farsi_digits(str(idx))}. {title} - {caption}")
+    return lines or ["فعلا پیشنهادی برای تقویم محتوا پیدا نشد."]
 
 
 def format_daily_report(clusters: list[StoryCluster], conn: sqlite3.Connection | None = None) -> str:
     watch_terms = list_watch_terms(conn) if conn else []
     lines = [
-        "<b>Daily Dubai Intelligence Report</b>",
+        "<b>گزارش روزانه رادار دبی</b>",
         "",
-        "<b>Top Stories</b>",
+        "<b>خبرهای مهم</b>",
     ]
     for idx, cluster in enumerate(clusters[:8], 1):
         editorial = ai_editorial_package(conn, cluster)
-        lines.append(f"{idx}. {html.escape(editorial['headline'])} | {cluster.score} | {', '.join(cluster.tags[:3])} | {html.escape(editorial['priority'])}")
+        title, _, _ = farsi_title_and_summary(cluster)
+        lines.append(f"{farsi_digits(str(idx))}. {html.escape(title)}")
         lines.append(html.escape(editorial["farsi"]))
-        lines.append(html.escape(editorial["persian_social"]))
-        lines.append("Copy-ready: " + html.escape(editorial["copy_ready"]))
-        lines.append(f"Image idea: {html.escape(editorial['image_suggestion'])}")
-        lines.append(f"Image prompt: {html.escape(editorial['image_prompt'])}")
-    lines.extend(["", "<b>Trend Signals</b>"])
+        lines.append("<b>پک کپشن فارسی:</b>\n" + html.escape(editorial["persian_social"]))
+        lines.append("<b>آماده کپی برای پست:</b>\n" + html.escape(editorial["copy_ready"]))
+    lines.extend(["", "<b>ترندها</b>"])
     lines.extend(html.escape(line) for line in trend_lines(clusters))
-    lines.extend(["", "<b>Content Calendar</b>"])
+    lines.extend(["", "<b>تقویم محتوا</b>"])
     lines.extend(html.escape(line) for line in content_calendar_lines(clusters, conn))
-    lines.extend(["", "<b>Watchlist</b>", html.escape(", ".join(watch_terms) if watch_terms else "No watch terms yet.")])
+    lines.extend(["", "<b>واچ لیست</b>", html.escape("، ".join(watch_terms) if watch_terms else "فعلا موردی ثبت نشده است.")])
     return "\n".join(lines)
 
 
 def format_heartbeat(clusters: list[StoryCluster], candidates_count: int, conn: sqlite3.Connection | None = None) -> str:
     unseen = [cluster for cluster in clusters if not (seen_cluster(conn, cluster) if conn else False)]
     lines = [
-        "<b>Dubai Magazine Radar Status</b>",
-        "Bot is alive and checked the sources today.",
-        f"Stories scanned: {candidates_count}",
-        f"Candidate story groups: {len(clusters)}",
-        f"New unsent groups: {len(unseen)}",
+        "<b>وضعیت رادار مجله دبی</b>",
+        "بات فعال است و امروز منابع را بررسی کرده است.",
+        f"خبرهای بررسی شده: {farsi_digits(str(candidates_count))}",
+        f"گروه های خبری: {farsi_digits(str(len(clusters)))}",
+        f"گروه های جدید ارسال نشده: {farsi_digits(str(len(unseen)))}",
         "",
-        "<b>Top signals</b>",
+        "<b>سیگنال های مهم</b>",
     ]
     for idx, cluster in enumerate(clusters[:5], 1):
-        editorial = ai_editorial_package(conn, cluster)
-        lines.append(f"{idx}. {html.escape(editorial['headline'])} | score {cluster.score} | {', '.join(cluster.tags[:3])}")
+        title, _, _ = farsi_title_and_summary(cluster)
+        lines.append(f"{farsi_digits(str(idx))}. {html.escape(title)}")
     if not clusters:
-        lines.append("No strong stories found in the current lookback window.")
-    lines.extend(["", "Breaking alerts only send when a story clears the breaking threshold."])
+        lines.append("در بازه فعلی خبر قوی پیدا نشد.")
+    lines.extend(["", "هشدارها فقط وقتی ارسال می شوند که خبر از حد امتیاز لازم عبور کند."])
     return "\n".join(lines)
 
 
 def help_text() -> str:
     return "\n".join(
         [
-            "<b>Dubai Magazine Radar Help</b>",
+            "<b>راهنمای رادار مجله دبی</b>",
             "",
-            "/help - Show this guide",
-            "/status - Check saved leads and feedback count",
-            "/sources - Show active news sources",
-            "/saved - Review saved Instagram/TikTok/X leads",
-            "/delete saved 3 - Remove a saved lead",
-            "/today - Top 5 post-ready stories with Persian captions and image prompts",
-            "/digest - Send the current top digest",
-            "/digest lifestyle - Restaurants, events, malls, pop-ups, weekend ideas",
-            "/digest viral - Viral, social, watch/video, influencer-style stories",
-            "/digest crime - Police, court, scams, arrests, public safety",
-            "/digest rules - Visas, fines, permits, Salik, parking, metro",
-            "/digest weather - Weather, traffic, roads, parking advisories",
-            "/digest business - Startups, property, investment, economy",
-            "/trends - Show stories covered by multiple sources",
-            "/report - Daily intelligence report",
-            "/calendar - Suggested content calendar",
-            "/watch rents - Add a watchlist term",
-            "/watchlist - Show watched terms",
-            "/unwatch rents - Remove a watched term",
+            "/help - نمایش همین راهنما",
+            "/status - وضعیت لیدهای ذخیره شده و بازخوردها",
+            "/sources - نمایش منابع فعال خبر",
+            "/saved - مرور لینک های ذخیره شده از اینستاگرام، تیک تاک یا ایکس",
+            "/delete saved 3 - حذف یک لینک ذخیره شده",
+            "/today - پنج خبر آماده پست با کپشن فارسی و پرامپت تصویر",
+            "/digest - ارسال خلاصه خبرهای مهم فعلی",
+            "/digest lifestyle - رستوران، رویداد، مال، پاپ آپ و ایده آخر هفته",
+            "/digest viral - خبرهای وایرال و مناسب شبکه اجتماعی",
+            "/digest crime - پلیس، دادگاه، کلاهبرداری، دستگیری و امنیت عمومی",
+            "/digest rules - ویزا، جریمه، مجوز، سالک، پارکینگ و مترو",
+            "/digest weather - آب وهوا، ترافیک، جاده و هشدارهای روزانه",
+            "/digest business - استارتاپ، ملک، سرمایه گذاری و اقتصاد",
+            "/trends - خبرهایی که چند منبع پوشش داده اند",
+            "/report - گزارش روزانه برای صفحه مجله",
+            "/calendar - پیشنهاد تقویم محتوایی",
+            "/watch rents - اضافه کردن یک کلمه به واچ لیست",
+            "/watchlist - نمایش واچ لیست",
+            "/unwatch rents - حذف یک کلمه از واچ لیست",
             "",
-            "Forward an Instagram, TikTok, or X link and I will save it as a social lead.",
-            "Tap Useful/Boring/Too late/More so ranking learns what is useful.",
-            "Tap Approve/Skip/Rewrite/Later to manage editorial workflow.",
-            "Every alert includes source links; clustered alerts can include up to four source links.",
-            "When an article image is found, it is sent before the full alert.",
-            "Every alert includes a separate HD image suggestion for an original post image.",
-            "Every alert includes an AI-ready image prompt, priority label, and Persian social caption pack.",
-            "Every alert includes a copy-ready post block: Persian caption, hashtags, HD image prompt, and source link.",
-            "Every news item includes Persian: one-line title, fuller story summary, and short caption.",
+            "اگر لینک اینستاگرام، تیک تاک یا ایکس را فوروارد کنید، بات آن را به عنوان لید اجتماعی ذخیره می کند.",
+            "با دکمه های مفید، کم اهمیت، دیر و بیشتر، رتبه بندی بات بهتر می شود.",
+            "هر خبر لینک منبع دارد؛ خبرهای خوشه ای می توانند تا چهار لینک منبع داشته باشند.",
+            "اگر تصویر مقاله پیدا شود، قبل از متن کامل خبر ارسال می شود.",
+            "هر خبر شامل عنوان فارسی، خلاصه کامل فارسی، کپشن کوتاه، پک کپشن فارسی، پرامپت تصویر و متن آماده کپی برای پست است.",
             "",
-            "Alert types:",
-            "Breaking alerts send high-score stories quickly.",
-            "Daily digests and reports collect captions, post ideas, trends, and calendar suggestions.",
+            "ارسال خودکار:",
+            "هشدارها فقط وقتی ارسال می شوند که خبر از حد امتیاز لازم عبور کند.",
+            "دایجست و گزارش روزانه خبرها، ترندها و پیشنهادهای محتوایی را جمع می کنند.",
         ]
     )
 
@@ -1607,7 +1613,7 @@ def process_updates(
                     "answerCallbackQuery",
                     {
                         "callback_query_id": callback["id"],
-                        "text": "Saved. The radar will learn from this.",
+                        "text": "ثبت شد. رادار از این بازخورد یاد می گیرد.",
                         "show_alert": False,
                     },
                 )
@@ -1619,7 +1625,7 @@ def process_updates(
                     "answerCallbackQuery",
                     {
                         "callback_query_id": callback["id"],
-                        "text": f"Marked: {parts[2]}",
+                        "text": "ثبت شد.",
                         "show_alert": False,
                     },
                 )
@@ -1650,22 +1656,22 @@ def process_updates(
             continue
         if text.startswith("/watchlist") and chat_id:
             terms = list_watch_terms(conn)
-            telegram_call(token, "sendMessage", {"chat_id": chat_id, "text": "Watchlist: " + (", ".join(terms) if terms else "empty")})
+            telegram_call(token, "sendMessage", {"chat_id": chat_id, "text": "واچ لیست: " + ("، ".join(terms) if terms else "خالی")})
             continue
         if text.startswith("/watch ") and chat_id:
             term = text.split(" ", 1)[1]
             add_watch_term(conn, term)
-            telegram_call(token, "sendMessage", {"chat_id": chat_id, "text": f"Watching: {clean_text(term, 80)}"})
+            telegram_call(token, "sendMessage", {"chat_id": chat_id, "text": f"به واچ لیست اضافه شد: {clean_text(term, 80)}"})
             continue
         if text.startswith("/unwatch ") and chat_id:
             term = text.split(" ", 1)[1]
             removed = remove_watch_term(conn, term)
-            telegram_call(token, "sendMessage", {"chat_id": chat_id, "text": "Removed." if removed else "That term was not on the watchlist."})
+            telegram_call(token, "sendMessage", {"chat_id": chat_id, "text": "حذف شد." if removed else "این کلمه در واچ لیست نبود."})
             continue
         if text.startswith("/today") and chat_id:
             clusters = apply_watch_boost(build_digest_clusters(config, hours, min_score, 20, None), list_watch_terms(conn))
             if not clusters:
-                telegram_call(token, "sendMessage", {"chat_id": chat_id, "text": "No strong post-ready stories found right now."})
+                telegram_call(token, "sendMessage", {"chat_id": chat_id, "text": "فعلا خبر آماده پست قوی پیدا نشد."})
                 continue
             send_today(token, chat_id, clusters, conn)
             continue
@@ -1677,23 +1683,21 @@ def process_updates(
                     "sendMessage",
                     {
                         "chat_id": chat_id,
-                        "text": "Unknown digest category. Try /digest lifestyle, /digest viral, /digest crime, /digest rules, /digest weather, or /digest business.",
+                        "text": "این دسته بندی را نمی شناسم. از این ها استفاده کنید: /digest lifestyle، /digest viral، /digest crime، /digest rules، /digest weather یا /digest business",
                     },
                 )
                 continue
             clusters = build_digest_clusters(config, hours, min_score, limit, category)
             clusters = apply_watch_boost(clusters, list_watch_terms(conn))
             if not clusters:
-                label = category or "top"
-                telegram_call(token, "sendMessage", {"chat_id": chat_id, "text": f"No {label} stories found right now."})
+                telegram_call(token, "sendMessage", {"chat_id": chat_id, "text": "فعلا خبری در این دسته پیدا نشد."})
                 continue
-            title = f"<b>{html.escape((category or 'top').title())} Digest</b>\n\n"
             telegram_call(
                 token,
                 "sendMessage",
                 {
                     "chat_id": chat_id,
-                    "text": title + format_digest(clusters, conn),
+                    "text": format_digest(clusters, conn),
                     "parse_mode": "HTML",
                     "disable_web_page_preview": False,
                 },
@@ -1701,11 +1705,11 @@ def process_updates(
             continue
         if text.startswith("/trends") and chat_id:
             clusters = apply_watch_boost(build_digest_clusters(config, hours, min_score, 40, None), list_watch_terms(conn))
-            telegram_call(token, "sendMessage", {"chat_id": chat_id, "text": "<b>Trend Signals</b>\n" + "\n".join(html.escape(line) for line in trend_lines(clusters)), "parse_mode": "HTML"})
+            telegram_call(token, "sendMessage", {"chat_id": chat_id, "text": "<b>ترندها</b>\n" + "\n".join(html.escape(line) for line in trend_lines(clusters)), "parse_mode": "HTML"})
             continue
         if text.startswith("/calendar") and chat_id:
             clusters = apply_watch_boost(build_digest_clusters(config, hours, min_score, 20, None), list_watch_terms(conn))
-            telegram_call(token, "sendMessage", {"chat_id": chat_id, "text": "<b>Content Calendar</b>\n" + "\n".join(html.escape(line) for line in content_calendar_lines(clusters, conn)), "parse_mode": "HTML"})
+            telegram_call(token, "sendMessage", {"chat_id": chat_id, "text": "<b>تقویم محتوا</b>\n" + "\n".join(html.escape(line) for line in content_calendar_lines(clusters, conn)), "parse_mode": "HTML"})
             continue
         if text.startswith("/report") and chat_id:
             clusters = apply_watch_boost(build_digest_clusters(config, hours, min_score, 40, None), list_watch_terms(conn))
@@ -1720,7 +1724,12 @@ def process_updates(
                 "sendMessage",
                 {
                     "chat_id": chat_id,
-                    "text": f"Radar is running.\nSaved social leads: {saved_count}\nFeedback clicks: {feedback_count}\nApproval actions: {approval_count}",
+                    "text": (
+                        "رادار فعال است.\n"
+                        f"لیدهای اجتماعی ذخیره شده: {farsi_digits(str(saved_count))}\n"
+                        f"بازخوردها: {farsi_digits(str(feedback_count))}\n"
+                        f"اقدام های تایید/رد: {farsi_digits(str(approval_count))}"
+                    ),
                 },
             )
             continue
@@ -1728,7 +1737,7 @@ def process_updates(
         urls = extract_social_urls(text)
         if urls and chat_id:
             saved = save_social_links(conn, urls, text, user_id, chat_id)
-            reply = f"Saved {saved} social lead{'s' if saved != 1 else ''}." if saved else "Already saved this social lead."
+            reply = f"{farsi_digits(str(saved))} لید اجتماعی ذخیره شد." if saved else "این لید قبلا ذخیره شده بود."
             telegram_call(token, "sendMessage", {"chat_id": chat_id, "text": reply})
 
     return processed
@@ -1783,25 +1792,16 @@ def main() -> int:
             print(format_heartbeat(clusters, len(candidates), conn))
             return 0
         for cluster in fresh:
-            print(f"[{cluster.score}] {cluster.title}")
-            print(f"    sources: {', '.join(cluster.sources)}")
-            print(f"    tags: {', '.join(cluster.tags)}")
-            print(f"    reasons: {', '.join(cluster.reasons)}")
             editorial = ai_editorial_package(conn, cluster)
-            print(f"    caption: {editorial['caption']}")
-            print(f"    farsi: {editorial['farsi']}")
-            print(f"    persian social: {editorial['persian_social']}")
-            print(f"    copy ready: {editorial['copy_ready']}")
-            print(f"    priority: {editorial['priority']}")
-            print(f"    idea: {editorial['post_idea']}")
-            print(f"    image suggestion: {editorial['image_suggestion']}")
-            print(f"    image prompt: {editorial['image_prompt']}")
-            print(f"    why: {editorial['why_care']}")
-            print(f"    calendar: {editorial['calendar_slot']}")
-            print(f"    article image: {cluster_image_url(cluster) or 'none'}")
+            title, _, _ = farsi_title_and_summary(cluster)
+            print(f"[{cluster.score}] {title}")
+            print(f"    منبع: {farsi_sources_line(cluster)}")
+            print(f"    {editorial['farsi']}")
+            print(f"    پک کپشن فارسی: {editorial['persian_social']}")
+            print(f"    آماده کپی برای پست: {editorial['copy_ready']}")
             for link in cluster.links[:4]:
                 print(f"    {link}")
-        print(f"{len(fresh)} sendable clusters from {len(candidates)} stories and {len(clusters)} candidate clusters.")
+        print(f"{len(fresh)} گروه قابل ارسال از {len(candidates)} خبر و {len(clusters)} گروه خبری.")
         return 0
 
     if not token or not chat_id:
