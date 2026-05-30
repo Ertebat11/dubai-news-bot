@@ -735,6 +735,7 @@ def fallback_editorial_package(cluster: StoryCluster) -> dict[str, str]:
         "caption": summary,
         "farsi": farsi_brief(cluster),
         "post_idea": idea,
+        "image_suggestion": image_suggestion(cluster),
         "carousel_title": clean_text(cluster.title, 70),
         "why_care": why_care(cluster),
         "calendar_slot": calendar_slot(cluster),
@@ -770,6 +771,32 @@ def post_suggestion(cluster: StoryCluster) -> str:
     if "business" in tags:
         return f"Post angle: Frame this as a Dubai business trend worth watching."
     return f"Post angle: Turn this into a short Dubai update with one clear takeaway."
+
+
+def image_suggestion(cluster: StoryCluster) -> str:
+    text = f"{cluster.title} {cluster.best_story.summary}".lower()
+    tags = set(cluster.tags)
+    if re.search(r"fake|fraud|scam|booking scam|fake booking|کلاهبرداری|احتيال|مزيف", text, re.I):
+        return "HD original image idea: close-up of a phone showing a generic travel booking page, passport and suitcase beside it, Dubai apartment light in the background, no logos, no real website screenshots."
+    if re.search(r"ebola|ابولا|health|public health", text, re.I):
+        return "HD original image idea: clean UAE airport or clinic-style scene with a masked traveler, passport, and subtle health advisory screen, bright professional lighting, no hospital patients, no logos."
+    if re.search(r"(return|returned|found|honesty|cash|money|أمانت|عثر|سلم|سلّم)", text, re.I):
+        return "HD original image idea: respectful close-up of a hand returning a sealed envelope or wallet at a police service counter, warm Dubai civic setting, no visible faces, no official logos."
+    if re.search(r"solidarity|condolence|condemns|foreign|minister|تعزي|تتضامن|يدين", text, re.I):
+        return "HD original image idea: UAE flag beside a neutral diplomatic desk with flowers or a condolence book, soft respectful lighting, no photos of victims, no government seal."
+    if "weather/traffic" in tags:
+        return "HD original image idea: sunny Dubai skyline with heat haze, road or waterfront foreground, clear blue sky, editorial weather-update style, no news graphics or outlet branding."
+    if "rules" in tags:
+        return "HD original image idea: minimalist travel/admin scene with passport, UAE entry stamp concept, metro or parking card, clean desk composition, no real documents or personal data."
+    if "business" in tags:
+        return "HD original image idea: modern Dubai business district skyline with subtle financial charts reflected on glass, professional magazine style, no company logos."
+    if "lifestyle" in tags:
+        return "HD original image idea: stylish Dubai lifestyle scene with cafe table, city lights, shopping bag or event wristband, warm premium look, no recognizable brands."
+    if "viral" in tags:
+        return "HD original image idea: dynamic social-media style Dubai street scene with phone recording a generic city moment, energetic composition, no copied post screenshots or platform logos."
+    if "crime" in tags:
+        return "HD original image idea: neutral public-safety visual with blurred Dubai street, police-light color accents, phone alert on screen, no crime scene, no identifiable people."
+    return "HD original image idea: clean editorial Dubai city image connected to the story theme, modern high-resolution magazine style, original composition, no logos, no copied news photo."
 
 
 def why_care(cluster: StoryCluster) -> str:
@@ -1110,9 +1137,10 @@ def format_cluster(cluster: StoryCluster, conn: sqlite3.Connection | None = None
         f"<b>Caption:</b> {html.escape(editorial['caption'])}\n\n"
         f"<b>Farsi:</b> {html.escape(editorial['farsi'])}\n\n"
         f"<b>Post idea:</b> {html.escape(editorial['post_idea'])}\n"
+        f"<b>Suggested post image:</b> {html.escape(editorial['image_suggestion'])}\n"
         f"<b>Why care:</b> {html.escape(editorial['why_care'])}\n"
         f"<b>Calendar:</b> {html.escape(editorial['calendar_slot'])}\n\n"
-        f"<b>Image:</b> {html.escape(cluster_image_url(cluster) or 'No image found')}\n\n"
+        f"<b>Article image:</b> {html.escape(cluster_image_url(cluster) or 'No image found')}\n\n"
         f"{links}"
     )
 
@@ -1135,6 +1163,7 @@ def format_digest(clusters: list[StoryCluster], conn: sqlite3.Connection | None 
                 f"Caption: {html.escape(editorial['caption'])}",
                 f"Farsi: {html.escape(editorial['farsi'])}",
                 f"Idea: {html.escape(editorial['post_idea'])}",
+                f"Image idea: {html.escape(editorial['image_suggestion'])}",
                 f"Calendar: {html.escape(editorial['calendar_slot'])}",
                 f"<a href=\"{html.escape(best.link)}\">Open lead source</a>",
                 "",
@@ -1290,6 +1319,7 @@ def format_daily_report(clusters: list[StoryCluster], conn: sqlite3.Connection |
         editorial = ai_editorial_package(conn, cluster)
         lines.append(f"{idx}. {html.escape(editorial['headline'])} | {cluster.score} | {', '.join(cluster.tags[:3])}")
         lines.append(html.escape(editorial["farsi"]))
+        lines.append(f"Image idea: {html.escape(editorial['image_suggestion'])}")
     lines.extend(["", "<b>Trend Signals</b>"])
     lines.extend(html.escape(line) for line in trend_lines(clusters))
     lines.extend(["", "<b>Content Calendar</b>"])
@@ -1347,6 +1377,7 @@ def help_text() -> str:
             "Tap Approve/Skip/Rewrite/Later to manage editorial workflow.",
             "Every alert includes source links; clustered alerts can include up to four source links.",
             "When an article image is found, it is sent before the full alert.",
+            "Every alert includes a separate HD image suggestion for an original post image.",
             "Every news item includes Persian: one-line title, fuller story summary, and short caption.",
             "",
             "Alert types:",
@@ -1566,9 +1597,10 @@ def main() -> int:
             print(f"    caption: {editorial['caption']}")
             print(f"    farsi: {editorial['farsi']}")
             print(f"    idea: {editorial['post_idea']}")
+            print(f"    image suggestion: {editorial['image_suggestion']}")
             print(f"    why: {editorial['why_care']}")
             print(f"    calendar: {editorial['calendar_slot']}")
-            print(f"    image: {cluster_image_url(cluster) or 'none'}")
+            print(f"    article image: {cluster_image_url(cluster) or 'none'}")
             for link in cluster.links[:4]:
                 print(f"    {link}")
         print(f"{len(fresh)} sendable clusters from {len(candidates)} stories and {len(clusters)} candidate clusters.")
