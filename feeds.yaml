@@ -39,6 +39,12 @@ sources:
     weight: 3
     enabled: true
 
+  - name: What's On Dubai
+    url: https://whatson.ae/dubai/feed/
+    weight: 3
+    skip_geo_filter: true
+    enabled: true
+
   - name: Dubai One / Emirates 24|7 UAE
     url: https://www.emirates247.com/rss/mobile/v2/uae.rss
     weight: 3
@@ -63,7 +69,7 @@ keywords:
 
   - label: culture/events
     weight: 3
-    terms: [launch, opening, pop-up, popup, concert, festival, exhibition, nightlife, brunch, افتتاح, مهرجان, فعالية]
+    terms: [launch, opening, pop-up, popup, concert, festival, exhibition, nightlife, brunch, cafe, restaurant, steakhouse, pool, bar, weekend, افتتاح, مهرجان, فعالية]
 
   - label: money/business
     weight: 2

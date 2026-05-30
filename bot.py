@@ -505,8 +505,8 @@ def classify_story(story: Story) -> list[str]:
         ("crime", r"crime|arrest|police|court|robbed|scam|fraud|knife|smuggling|cocaine|شرطة|محكمة|سرقة|احتيال|مخدرات|قبض|مشاجرة"),
         ("breaking", r"breaking|urgent|alert|fire|crash|accident|arrest|police|court|crime|عاجل|شرطة|حادث|حريق"),
         ("viral", r"viral|trending|watch|video|influencer|tiktok|instagram|فيديو|ترند"),
-        ("lifestyle", r"restaurant|brunch|hotel|mall|pop-up|popup|concert|festival|weekend|eid|karak|فعالية|مهرجان"),
-        ("rules", r"visa|fine|law|rule|permit|salik|parking|metro|rta|تأشيرة|غرامة"),
+        ("lifestyle", r"restaurant|brunch|hotel|mall|pop-up|popup|concert|festival|weekend|eid|karak|cafe|caf[eé]|steakhouse|pool|bar|nightlife|فعالية|مهرجان"),
+        ("rules", r"\b(?:visa|fine|law|rule|permit|salik|parking|metro|rta)\b|تأشيرة|غرامة"),
         ("weather/traffic", r"weather|traffic|rain|heat|dust|road|parking|طقس|ازدحام"),
         ("business", r"startup|investment|property|real estate|business|deal|profit|economy|استثمار|اقتصاد"),
     ]
@@ -597,6 +597,7 @@ FARSI_SOURCE_NAMES = {
     "Khaleej Times UAE": "خلیج تایمز",
     "Lovin Dubai": "لاوین دبی",
     "The National UAE": "نشنال",
+    "What's On Dubai": "واتس آن دبی",
 }
 
 
@@ -692,9 +693,30 @@ def farsi_title_and_summary(cluster: StoryCluster) -> tuple[str, str, str]:
             summary = "این خبر یک اطلاع رسانی روزمره و کاربردی درباره آب وهوا، جاده ها، ترافیک، پروازها یا رفت وآمد در دبی و امارات است. اهمیت آن در کمک به برنامه ریزی روزانه مخاطب است؛ مخصوصا اگر روی مسیر، زمان حرکت، برنامه سفر یا انتخاب زمان بیرون رفتن اثر بگذارد. بهتر است پست با زمان، مکان و اقدام پیشنهادی شروع شود."
             caption = "قبل از بیرون رفتن یا برنامه سفر، این به روزرسانی را ببینید."
     elif "lifestyle" in tags:
-        title = "پیشنهاد تازه برای سبک زندگی در دبی"
-        summary = "این خبر برای محتوای سبک زندگی دبی مناسب است؛ از رویداد و رستوران گرفته تا مراکز خرید، پاپ آپ ها، برنامه های آخر هفته یا تجربه های شهری. ارزش آن این است که خبر می تواند برای مخاطب به یک پیشنهاد قابل انجام تبدیل شود، نه فقط یک اطلاعیه ساده. اگر قرار است در اینستاگرام منتشر شود، باید حس تجربه کردن و رفتن به آن مکان یا رویداد را منتقل کند."
-        caption = "یک ایده تازه برای تجربه کردن دبی."
+        if re.search(r"cafe|caf[eé]|alserkal", text, re.I):
+            title = "کافه های دیدنی دبی برای لیست آخر هفته"
+            summary = "این خبر چند کافه یا تجربه غذایی در دبی را معرفی می کند که برای محتوای سبک زندگی و پیشنهادهای آخر هفته مناسب است. زاویه اصلی برای مخاطب این است که بداند کجا می تواند یک قرار، قهوه، فضای عکاسی یا تجربه شهری تازه داشته باشد. برای پست اینستاگرام، بهتر است روی حس مکان، فضای متفاوت و دلیل رفتن به آن کافه ها تمرکز شود."
+            caption = "چند کافه دبی که ارزش اضافه شدن به لیست آخر هفته را دارند."
+        elif re.search(r"steakhouse|steak|wagyu|tomahawk", text, re.I):
+            title = "بهترین استیک هاوس های دبی برای عاشقان غذا"
+            summary = "این خبر درباره رستوران ها و استیک هاوس های دبی است؛ از انتخاب های لوکس و واگیو گرفته تا تجربه های مناسب شام و مناسبت های خاص. برای مخاطب مجله ای، ارزش خبر در این است که یک راهنمای سریع برای انتخاب رستوران می سازد و می تواند به شکل پست ذخیره کردنی منتشر شود. زاویه خوب برای کپشن، سوال درباره بهترین استیک شهر یا معرفی چند گزینه برای آخر هفته است."
+            caption = "اگر دنبال یک شام خاص در دبی هستید، این لیست به دردتان می خورد."
+        elif re.search(r"brunch", text, re.I):
+            title = "برانچ های معروف دبی که هنوز سر زبان ها هستند"
+            summary = "این خبر روی برانچ ها و تجربه های غذایی آخر هفته در دبی تمرکز دارد؛ موضوعی که برای مخاطب محلی، گردشگران و علاقه مندان سبک زندگی جذاب است. ارزش محتوایی آن در قابل ذخیره بودن است، چون مخاطب می تواند از آن برای برنامه آخر هفته یا انتخاب رستوران استفاده کند. بهتر است پست با حس تجربه، قیمت یا حال وهوای مکان روایت شود."
+            caption = "یک ایده خوشمزه برای برنامه آخر هفته در دبی."
+        elif re.search(r"wine|bar|nightlife|entertainment", text, re.I):
+            title = "یک گزینه تازه برای شب گردی و تجربه غذایی در دبی"
+            summary = "این خبر یک بار، رستوران یا فضای شبانه در دبی را معرفی می کند و برای محتوای سبک زندگی شهری مناسب است. اهمیت آن برای صفحه مجله ای این است که فقط خبر افتتاح یا معرفی مکان نیست؛ می تواند به مخاطب ایده بدهد کجا برود، چه فضایی انتظار داشته باشد و چرا این تجربه متفاوت است. در کپشن بهتر است روی حال وهوای مکان و مناسب بودن برای قرار یا دورهمی تمرکز شود."
+            caption = "یک آدرس تازه برای شب های دبی و قرارهای خاص."
+        elif re.search(r"pool|beach|resort", text, re.I):
+            title = "استخرها و تجربه های آفتابی دبی برای آخر هفته"
+            summary = "این خبر درباره استخرها، ریزورت ها یا تجربه های فضای باز در دبی است و برای پست های تصویری بسیار مناسب است. ارزش آن در این است که مخاطب می تواند از آن برای برنامه ریزی آخر هفته، انتخاب لوکیشن عکاسی یا یک روز آرام در شهر استفاده کند. زاویه خوب برای انتشار، ترکیب تصویر قوی، حس تابستانی و یک سوال کوتاه از مخاطب است."
+            caption = "یک ایده تصویری و جذاب برای آخر هفته در دبی."
+        else:
+            title = "پیشنهاد تازه برای سبک زندگی در دبی"
+            summary = "این خبر برای محتوای سبک زندگی دبی مناسب است؛ از رویداد و رستوران گرفته تا مراکز خرید، پاپ آپ ها، برنامه های آخر هفته یا تجربه های شهری. ارزش آن این است که خبر می تواند برای مخاطب به یک پیشنهاد قابل انجام تبدیل شود، نه فقط یک اطلاعیه ساده. اگر قرار است در اینستاگرام منتشر شود، باید حس تجربه کردن و رفتن به آن مکان یا رویداد را منتقل کند."
+            caption = "یک ایده تازه برای تجربه کردن دبی."
     elif "viral" in tags:
         if re.search(r"paragliding|ice-cream|ice cream|landlord", text, re.I):
             title = "چند سوژه وایرال از دبی در یک خبر"
@@ -738,6 +760,7 @@ def fallback_editorial_package(cluster: StoryCluster) -> dict[str, str]:
         "image_suggestion": image_suggestion(cluster),
         "image_prompt": image_prompt(cluster),
         "persian_social": persian_social_pack(cluster),
+        "copy_ready": copy_ready_post_block(cluster),
         "priority": priority_label(cluster),
         "carousel_title": clean_text(cluster.title, 70),
         "why_care": why_care(cluster),
@@ -844,6 +867,24 @@ def persian_social_pack(cluster: StoryCluster) -> str:
             f"کپشن کاروسل: {clean_text(carousel, 420)}",
             f"هوک ریل: {hook}",
             f"هشتگ ها: {' '.join(hashtags[:4])}",
+        ]
+    )
+
+
+def copy_ready_post_block(cluster: StoryCluster) -> str:
+    _, _, caption = farsi_title_and_summary(cluster)
+    social = persian_social_pack(cluster)
+    hashtags = "#دبی #امارات #اخبار_دبی"
+    for line in social.splitlines():
+        if line.startswith("هشتگ ها:"):
+            hashtags = line.split(":", 1)[1].strip()
+            break
+    return "\n".join(
+        [
+            f"کپشن: {caption}",
+            f"هشتگ: {hashtags}",
+            f"پرامپت تصویر: {clean_text(image_prompt(cluster), 520)}",
+            f"لینک: {cluster.best_story.link}",
         ]
     )
 
@@ -1131,7 +1172,7 @@ def collect(config: dict[str, Any], hours: int) -> list[Story]:
             if not title or not link:
                 continue
             summary = clean_text(entry.get("summary", "") or entry.get("description", ""))
-            geo_terms = config.get("require_any_terms", [])
+            geo_terms = [] if source.get("skip_geo_filter") else config.get("require_any_terms", [])
             combined = f"{title} {summary}".lower()
             if geo_terms and not any(term.lower() in combined for term in geo_terms):
                 continue
@@ -1199,6 +1240,7 @@ def format_cluster(cluster: StoryCluster, conn: sqlite3.Connection | None = None
         f"<b>Caption:</b> {html.escape(editorial['caption'])}\n\n"
         f"<b>Farsi:</b> {html.escape(editorial['farsi'])}\n\n"
         f"<b>Persian social:</b>\n{html.escape(editorial['persian_social'])}\n\n"
+        f"<b>Copy-ready post:</b>\n{html.escape(editorial['copy_ready'])}\n\n"
         f"<b>Priority:</b> {html.escape(editorial['priority'])}\n"
         f"<b>Post idea:</b> {html.escape(editorial['post_idea'])}\n"
         f"<b>Suggested post image:</b> {html.escape(editorial['image_suggestion'])}\n"
@@ -1228,6 +1270,7 @@ def format_digest(clusters: list[StoryCluster], conn: sqlite3.Connection | None 
                 f"Caption: {html.escape(editorial['caption'])}",
                 f"Farsi: {html.escape(editorial['farsi'])}",
                 f"Persian social: {html.escape(editorial['persian_social'])}",
+                f"Copy-ready: {html.escape(editorial['copy_ready'])}",
                 f"Idea: {html.escape(editorial['post_idea'])}",
                 f"Image idea: {html.escape(editorial['image_suggestion'])}",
                 f"Image prompt: {html.escape(editorial['image_prompt'])}",
@@ -1256,6 +1299,7 @@ def format_today(clusters: list[StoryCluster], conn: sqlite3.Connection | None =
                 f"{html.escape(source_line)} | score {cluster.score} | {html.escape(tags)}",
                 f"<b>Persian</b>\n{html.escape(editorial['farsi'])}",
                 f"<b>Persian social</b>\n{html.escape(editorial['persian_social'])}",
+                f"<b>Copy-ready post</b>\n{html.escape(editorial['copy_ready'])}",
                 f"<b>Image prompt</b>\n{html.escape(editorial['image_prompt'])}",
                 f"<b>Post idea:</b> {html.escape(editorial['post_idea'])}",
                 f"<a href=\"{html.escape(best.link)}\">Open lead source</a>",
@@ -1317,6 +1361,8 @@ def send_today(token: str, chat_id: str, clusters: list[StoryCluster], conn: sql
                 f"<b>Persian</b>\n{html.escape(editorial['farsi'])}",
                 "",
                 f"<b>Persian social</b>\n{html.escape(editorial['persian_social'])}",
+                "",
+                f"<b>Copy-ready post</b>\n{html.escape(editorial['copy_ready'])}",
                 "",
                 f"<b>Image prompt</b>\n{html.escape(editorial['image_prompt'])}",
                 "",
@@ -1455,6 +1501,7 @@ def format_daily_report(clusters: list[StoryCluster], conn: sqlite3.Connection |
         lines.append(f"{idx}. {html.escape(editorial['headline'])} | {cluster.score} | {', '.join(cluster.tags[:3])} | {html.escape(editorial['priority'])}")
         lines.append(html.escape(editorial["farsi"]))
         lines.append(html.escape(editorial["persian_social"]))
+        lines.append("Copy-ready: " + html.escape(editorial["copy_ready"]))
         lines.append(f"Image idea: {html.escape(editorial['image_suggestion'])}")
         lines.append(f"Image prompt: {html.escape(editorial['image_prompt'])}")
     lines.extend(["", "<b>Trend Signals</b>"])
@@ -1517,6 +1564,7 @@ def help_text() -> str:
             "When an article image is found, it is sent before the full alert.",
             "Every alert includes a separate HD image suggestion for an original post image.",
             "Every alert includes an AI-ready image prompt, priority label, and Persian social caption pack.",
+            "Every alert includes a copy-ready post block: Persian caption, hashtags, HD image prompt, and source link.",
             "Every news item includes Persian: one-line title, fuller story summary, and short caption.",
             "",
             "Alert types:",
@@ -1743,6 +1791,7 @@ def main() -> int:
             print(f"    caption: {editorial['caption']}")
             print(f"    farsi: {editorial['farsi']}")
             print(f"    persian social: {editorial['persian_social']}")
+            print(f"    copy ready: {editorial['copy_ready']}")
             print(f"    priority: {editorial['priority']}")
             print(f"    idea: {editorial['post_idea']}")
             print(f"    image suggestion: {editorial['image_suggestion']}")
