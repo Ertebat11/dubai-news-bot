@@ -593,7 +593,6 @@ def farsi_brief(cluster: StoryCluster) -> str:
     text = f"{cluster.title} {cluster.best_story.summary}".lower()
     tags = set(cluster.tags)
     source = cluster.sources[0] if cluster.sources else cluster.best_story.source
-    headline = clean_text(cluster.title, 180)
     if re.search(r"fake|fraud|scam|warn|booking|کلاهبرداری|احتيال|مزيف", text, re.I):
         context = "این خبر درباره هشدار به ساکنان دبی نسبت به کلاهبرداری، پیشنهادهای جعلی یا ریسک امنیتی است."
         angle = "برای کپشن، روی نکته های هشداردهنده و راه های جلوگیری از ضرر تمرکز شود."
@@ -626,7 +625,7 @@ def farsi_brief(cluster: StoryCluster) -> str:
     else:
         context = "این یک به روزرسانی تازه و قابل توجه درباره دبی یا امارات است که می تواند برای مخاطب محلی مهم باشد."
         angle = "برای کپشن، یک برداشت واضح و کوتاه از اهمیت خبر بدهید."
-    return f"خلاصه فارسی: تیتر خبر: {headline}. {context} {angle} منبع اصلی: {source}."
+    return f"خلاصه فارسی: {context} {angle} منبع اصلی: {source}."
 
 
 def fallback_editorial_package(cluster: StoryCluster) -> dict[str, str]:
