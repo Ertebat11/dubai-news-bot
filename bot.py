@@ -585,7 +585,7 @@ def caption_summary(cluster: StoryCluster) -> str:
     base = best.summary or cluster.title
     base = clean_text(base, 260)
     if base == cluster.title and len(cluster.sources) > 1:
-        base = f"{cluster.title}. Multiple UAE outlets are covering this developing story."
+        base = f"{cluster.title}. چند منبع اماراتی همزمان این خبر را پوشش داده اند."
     return base
 
 
@@ -621,7 +621,12 @@ def farsi_money_detail(text: str) -> str:
             return "۱۰۰ هزار درهم"
         return "مبلغ قابل توجهی"
     amount = (match.group(1) or match.group(2) or "").replace(",", "")
-    return f"{farsi_digits(amount)} درهم" if amount else "مبلغ قابل توجهی"
+    suffix = ""
+    if re.search(rf"{re.escape(match.group(0))}\s*(?:million|mn|مليون|ملیون)", text, re.I):
+        suffix = " میلیون"
+    elif re.search(rf"{re.escape(match.group(0))}\s*(?:billion|bn|مليار|میلیارد)", text, re.I):
+        suffix = " میلیارد"
+    return f"{farsi_digits(amount)}{suffix} درهم" if amount else "مبلغ قابل توجهی"
 
 
 def farsi_count_detail(text: str) -> str:
@@ -684,11 +689,11 @@ def farsi_title_and_summary(cluster: StoryCluster) -> tuple[str, str, str]:
             summary = "امارات در واکنش به یک اتفاق مهم بین المللی پیام همبستگی، تسلیت، محکومیت یا موضع رسمی منتشر کرده است. اهمیت خبر در نقش دیپلماسی امارات و پیام انسانی یا سیاسی این واکنش است. برای مخاطب فارسی زبان، بهتر است خبر با تاکید بر اینکه امارات چه گفته و چرا این واکنش مهم است روایت شود."
             caption = "واکنش رسمی امارات به یک خبر مهم بین المللی."
     elif "crime" in tags:
-        if re.search(r"oud|عود", text, re.I) and re.search(r"theft|stole|سرق|سرقت", text, re.I):
+        if re.search(r"oud|عود", text, re.I) and re.search(r"theft|stole|steal|stealing|سرق|سرقت", text, re.I):
             amount = farsi_money_detail(raw_text)
             count = farsi_count_detail(raw_text)
             title = "بازداشت متهمان سرقت عود گران قیمت در دبی"
-            summary = f"پلیس دبی {count} را در ارتباط با پرونده سرقت عود گران قیمت بازداشت کرده است. ارزش کالای سرقت شده حدود {amount} گزارش شده و در روایت خبر آمده که یکی از افراد با جعل هویت یا معرفی خود به شکل فریبنده وارد ماجرا شده بود. محور اصلی خبر، عملیات پلیس دبی برای شناسایی متهمان و بازگرداندن کالای سرقت شده است."
+            summary = f"پلیس دبی تلاش یک باند برای سرقت عود گران قیمت را خنثی کرده و {count} را در ارتباط با این پرونده بازداشت کرده است. ارزش عود مورد هدف حدود {amount} گزارش شده است. بر اساس خبر، پرونده با عملیات پلیس برای شناسایی افراد درگیر و جلوگیری از سرقت این کالای گران قیمت پیگیری شده است."
             caption = "پلیس دبی پرونده سرقت عود گران قیمت را با بازداشت متهمان پیگیری کرد."
         elif re.search(r"arrest|arrested|قبض|ضبط", text, re.I):
             count = farsi_count_detail(raw_text)
@@ -701,7 +706,7 @@ def farsi_title_and_summary(cluster: StoryCluster) -> tuple[str, str, str]:
             caption = "یک پرونده قضایی تازه در امارات خبرساز شد."
         else:
             title = "خبر تازه پلیسی یا امنیتی در امارات"
-            summary = "این خبر درباره یک اتفاق پلیسی، امنیتی یا قضایی در امارات است. اصل خبر باید با خود حادثه روایت شود: چه اتفاقی افتاده، کدام نهاد رسمی وارد عمل شده، چند نفر یا چه اموالی درگیر بوده اند و نتیجه اولیه چه بوده است. این نسخه برای کپشن باید روی جزئیات خبر تمرکز کند، نه فقط روی اینکه موضوع برای مردم مهم است."
+            summary = "این خبر درباره یک اتفاق پلیسی، امنیتی یا قضایی در امارات است. بر اساس جزئیات منتشرشده، یک نهاد رسمی وارد پرونده شده و موضوع به حادثه، متهمان، هشدار امنیتی یا روند قضایی مربوط می شود. در روایت خبر، تمرکز اصلی روی خود اتفاق و اقدام رسمی اعلام شده است."
             caption = "یک پرونده پلیسی تازه در امارات اعلام شد."
     elif "rules" in tags:
         if re.search(r"eswatini|إسواتيني|اسواتيني|visa waiver|mutual visa|الإعفاء المتبادل|تأشيرة الدخول", text, re.I):
@@ -802,56 +807,55 @@ def ai_editorial_package(conn: sqlite3.Connection | None, cluster: StoryCluster)
 
 
 def post_suggestion(cluster: StoryCluster) -> str:
-    title = cluster.title.rstrip(".")
     text = f"{cluster.title} {cluster.best_story.summary}".lower()
     tags = set(cluster.tags)
     if re.search(r"solidarity|condolence|condemns|foreign|minister|تعزي|تتضامن|يدين", text, re.I):
-        return "Post angle: Use this as a short UAE diplomacy update with the human impact first."
+        return "زاویه پست: خبر را به عنوان واکنش رسمی امارات با تمرکز بر جنبه انسانی منتشر کنید."
     if re.search(r"(return|returned|found|honesty|أمانت|عثر|سلم|سلّم)", text, re.I) and re.search(
         r"\baed\b|\bdh\b|dirham|درهم|100,?000|100 ألف", text, re.I
     ):
-        return "Post angle: Frame it as a feel-good Dubai honesty story with a strong local hook."
+        return "زاویه پست: آن را به شکل یک خبر مثبت درباره امانت داری در دبی روایت کنید."
     if re.search(r"fake|fraud|scam|warn", text, re.I):
-        return "Post angle: Turn this into a practical warning post with the red flags people should check."
+        return "زاویه پست: آن را به شکل هشدار کاربردی با نکات احتیاطی منتشر کنید."
     if "breaking" in tags:
-        return f"Post angle: Lead with what happened, where it happened, and what residents should do next."
+        return "زاویه پست: با خود اتفاق، محل وقوع و اقدام لازم برای ساکنان شروع کنید."
     if "viral" in tags:
-        return f"Post angle: Why this Dubai moment is getting people talking today."
+        return "زاویه پست: توضیح دهید چرا این سوژه امروز در دبی بحث برانگیز شده است."
     if "lifestyle" in tags:
-        return f"Post angle: Add this to the Dubai weekend radar."
+        return "زاویه پست: آن را به عنوان پیشنهاد آخر هفته یا تجربه تازه در دبی معرفی کنید."
     if "rules" in tags:
-        return f"Post angle: Explain the practical change and who it affects in Dubai."
+        return "زاویه پست: تغییر عملی و کسانی را که تحت تاثیر قرار می گیرند ساده توضیح دهید."
     if "weather/traffic" in tags:
-        return f"Post angle: A quick resident advisory with the key timing and location."
+        return "زاویه پست: زمان، مکان و توصیه اصلی را کوتاه و کاربردی بگویید."
     if "business" in tags:
-        return f"Post angle: Frame this as a Dubai business trend worth watching."
-    return f"Post angle: Turn this into a short Dubai update with one clear takeaway."
+        return "زاویه پست: آن را به عنوان روند اقتصادی یا کسب وکاری مهم در دبی معرفی کنید."
+    return "زاویه پست: خبر را با یک نکته روشن و کوتاه برای مخاطب دبی روایت کنید."
 
 
 def image_suggestion(cluster: StoryCluster) -> str:
     text = f"{cluster.title} {cluster.best_story.summary}".lower()
     tags = set(cluster.tags)
     if re.search(r"fake|fraud|scam|booking scam|fake booking|کلاهبرداری|احتيال|مزيف", text, re.I):
-        return "HD original image idea: close-up of a phone showing a generic travel booking page, passport and suitcase beside it, Dubai apartment light in the background, no logos, no real website screenshots."
+        return "ایده تصویر اچ دی: نمای نزدیک از موبایل با صفحه رزرو سفر عمومی، کنار پاسپورت و چمدان، نور آپارتمان در دبی، بدون لوگو و بدون اسکرین شات واقعی."
     if re.search(r"ebola|ابولا|health|public health", text, re.I):
-        return "HD original image idea: clean UAE airport or clinic-style scene with a masked traveler, passport, and subtle health advisory screen, bright professional lighting, no hospital patients, no logos."
+        return "ایده تصویر اچ دی: فضای تمیز فرودگاه یا کلینیک در امارات با مسافر ماسک دار، پاسپورت و صفحه هشدار سلامت عمومی، بدون بیمار و بدون لوگو."
     if re.search(r"(return|returned|found|honesty|cash|money|أمانت|عثر|سلم|سلّم)", text, re.I):
-        return "HD original image idea: respectful close-up of a hand returning a sealed envelope or wallet at a police service counter, warm Dubai civic setting, no visible faces, no official logos."
+        return "ایده تصویر اچ دی: نمای محترمانه از دستی که کیف پول یا پاکت را روی کانتر خدمات پلیس تحویل می دهد، فضای مدنی دبی، بدون چهره و بدون لوگو."
     if re.search(r"solidarity|condolence|condemns|foreign|minister|تعزي|تتضامن|يدين", text, re.I):
-        return "HD original image idea: UAE flag beside a neutral diplomatic desk with flowers or a condolence book, soft respectful lighting, no photos of victims, no government seal."
+        return "ایده تصویر اچ دی: پرچم امارات کنار میز دیپلماتیک ساده با گل یا دفتر تسلیت، نور نرم و محترمانه، بدون تصویر قربانیان و بدون مهر رسمی."
     if "weather/traffic" in tags:
-        return "HD original image idea: sunny Dubai skyline with heat haze, road or waterfront foreground, clear blue sky, editorial weather-update style, no news graphics or outlet branding."
+        return "ایده تصویر اچ دی: خط آسمان دبی در روز آفتابی با حس گرما، جاده یا ساحل در پیش زمینه، سبک خبری تمیز، بدون گرافیک خبری و برند رسانه."
     if "rules" in tags:
-        return "HD original image idea: minimalist travel/admin scene with passport, UAE entry stamp concept, metro or parking card, clean desk composition, no real documents or personal data."
+        return "ایده تصویر اچ دی: چیدمان مینیمال اداری با پاسپورت، مفهوم مهر ورود امارات، کارت مترو یا پارکینگ، بدون سند واقعی و بدون اطلاعات شخصی."
     if "business" in tags:
-        return "HD original image idea: modern Dubai business district skyline with subtle financial charts reflected on glass, professional magazine style, no company logos."
+        return "ایده تصویر اچ دی: خط آسمان منطقه تجاری دبی با بازتاب نمودارهای مالی روی شیشه، سبک مجله ای حرفه ای، بدون لوگوی شرکت."
     if "lifestyle" in tags:
-        return "HD original image idea: stylish Dubai lifestyle scene with cafe table, city lights, shopping bag or event wristband, warm premium look, no recognizable brands."
+        return "ایده تصویر اچ دی: صحنه سبک زندگی دبی با میز کافه، نور شهر، کیسه خرید یا دستبند رویداد، ظاهر گرم و شیک، بدون برند قابل تشخیص."
     if "viral" in tags:
-        return "HD original image idea: dynamic social-media style Dubai street scene with phone recording a generic city moment, energetic composition, no copied post screenshots or platform logos."
+        return "ایده تصویر اچ دی: صحنه پویا از خیابان دبی با موبایلی که یک لحظه عمومی شهری را ضبط می کند، بدون اسکرین شات پست و بدون لوگوی پلتفرم."
     if "crime" in tags:
-        return "HD original image idea: neutral public-safety visual with blurred Dubai street, police-light color accents, phone alert on screen, no crime scene, no identifiable people."
-    return "HD original image idea: clean editorial Dubai city image connected to the story theme, modern high-resolution magazine style, original composition, no logos, no copied news photo."
+        return "ایده تصویر اچ دی: تصویر خنثی امنیت عمومی با خیابان محو دبی، نور هشدار ملایم و اعلان موبایل، بدون صحنه جرم و بدون افراد قابل شناسایی."
+    return "ایده تصویر اچ دی: تصویر تمیز و مجله ای از دبی مرتبط با موضوع خبر، مدرن و با کیفیت بالا، کاملا اورجینال، بدون لوگو و بدون کپی از عکس خبر."
 
 
 def image_prompt(cluster: StoryCluster) -> str:
@@ -957,31 +961,31 @@ def priority_label(cluster: StoryCluster) -> str:
 def why_care(cluster: StoryCluster) -> str:
     tags = set(cluster.tags)
     if "crime" in tags:
-        return "Useful for residents because it points to safety, scams, or legal risk."
+        return "برای ساکنان مهم است چون به امنیت، کلاهبرداری یا ریسک قانونی مربوط می شود."
     if "viral" in tags:
-        return "Good for engagement because the story has social conversation potential."
+        return "برای تعامل خوب است چون ظرفیت بحث و واکنش در شبکه های اجتماعی دارد."
     if "lifestyle" in tags:
-        return "Useful for weekend planning and quick audience-friendly content."
+        return "برای برنامه آخر هفته و محتوای سریع سبک زندگی مناسب است."
     if "rules" in tags:
-        return "Practical because it affects how people move, travel, pay, or comply."
+        return "کاربردی است چون می تواند روی رفت وآمد، سفر، پرداخت یا رعایت قانون اثر بگذارد."
     if "weather/traffic" in tags:
-        return "Timely because it helps residents plan their day."
+        return "به موقع است چون به برنامه ریزی روزانه ساکنان کمک می کند."
     if "business" in tags:
-        return "Useful as a Dubai economy or startup trend signal."
-    return "A timely Dubai update with clear audience relevance."
+        return "برای دنبال کردن روند اقتصاد، کسب وکار یا استارتاپ های دبی مفید است."
+    return "یک به روزرسانی به موقع از دبی با ارتباط روشن برای مخاطب."
 
 
 def calendar_slot(cluster: StoryCluster) -> str:
     tags = set(cluster.tags)
     if "breaking" in tags or "weather/traffic" in tags:
-        return "Post today as a quick update."
+        return "امروز به عنوان به روزرسانی کوتاه منتشر شود."
     if "viral" in tags:
-        return "Post today as a Reel or short social caption."
+        return "امروز به شکل ریل یا کپشن کوتاه منتشر شود."
     if "lifestyle" in tags:
-        return "Save for weekend roundup or carousel."
+        return "برای راندآپ آخر هفته یا کاروسل نگه داشته شود."
     if "business" in tags or "rules" in tags:
-        return "Use tomorrow as an explainer carousel."
-    return "Save for the daily roundup."
+        return "فردا به شکل کاروسل توضیحی استفاده شود."
+    return "برای راندآپ روزانه نگه داشته شود."
 
 
 def group_key(title: str) -> str:
@@ -1431,7 +1435,7 @@ def discover_chat(token: str) -> int:
     data = resp.json()
     updates = data.get("result", [])
     if not updates:
-        print("No chats found yet. Send /start to the bot in Telegram, then run this again.")
+        print("هنوز چتی پیدا نشد. اول در تلگرام دستور /start را برای بات بفرستید، بعد دوباره این دستور را اجرا کنید.")
         return 1
     for update in updates:
         message = update.get("message") or update.get("channel_post") or {}
@@ -1707,7 +1711,7 @@ def process_updates(
                     "sendMessage",
                     {
                         "chat_id": chat_id,
-                        "text": "این دسته بندی را نمی شناسم. از این ها استفاده کنید: /digest lifestyle، /digest viral، /digest crime، /digest rules، /digest weather یا /digest business",
+                        "text": "این دسته بندی را نمی شناسم. دستور /help را بزنید و یکی از دسته بندی های همان راهنما را انتخاب کنید.",
                     },
                 )
                 continue
@@ -1768,7 +1772,7 @@ def process_updates(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Dubai magazine Telegram news radar")
+    parser = argparse.ArgumentParser(description="رادار خبری تلگرام برای مجله دبی")
     parser.add_argument("--config", default=os.getenv("NEWS_CONFIG", DEFAULT_CONFIG))
     parser.add_argument("--db", default=os.getenv("DB_PATH", DEFAULT_DB))
     parser.add_argument("--hours", type=int, default=int(os.getenv("LOOKBACK_HOURS", "24")))
@@ -1789,7 +1793,7 @@ def main() -> int:
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     if args.discover_chat:
         if not token:
-            print("Set TELEGRAM_BOT_TOKEN first.", file=sys.stderr)
+            print("اول TELEGRAM_BOT_TOKEN را تنظیم کنید.", file=sys.stderr)
             return 2
         return discover_chat(token)
 
@@ -1797,10 +1801,10 @@ def main() -> int:
     conn = init_db(args.db)
     if args.process_updates:
         if not token:
-            print("Set TELEGRAM_BOT_TOKEN first.", file=sys.stderr)
+            print("اول TELEGRAM_BOT_TOKEN را تنظیم کنید.", file=sys.stderr)
             return 2
         processed = process_updates(token, conn, config, args.hours, args.min_score, args.limit)
-        print(f"Processed {processed} Telegram updates.")
+        print(f"{processed} به روزرسانی تلگرام پردازش شد.")
         return 0
 
     candidates = [story for story in collect(config, args.hours) if story.score >= args.min_score]
@@ -1829,7 +1833,7 @@ def main() -> int:
         return 0
 
     if not token or not chat_id:
-        print("Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID, or run --dry-run.", file=sys.stderr)
+        print("TELEGRAM_BOT_TOKEN و TELEGRAM_CHAT_ID را تنظیم کنید یا با --dry-run اجرا کنید.", file=sys.stderr)
         return 2
 
     if args.mode == "heartbeat":
@@ -1843,7 +1847,7 @@ def main() -> int:
                 "disable_web_page_preview": True,
             },
         )
-        print(f"Sent heartbeat with {len(clusters)} candidate clusters.")
+        print(f"پیام وضعیت با {len(clusters)} گروه خبری ارسال شد.")
         return 0
 
     if args.mode == "digest":
@@ -1851,7 +1855,7 @@ def main() -> int:
             send_digest(token, chat_id, fresh, conn)
             for cluster in fresh:
                 mark_seen(conn, cluster)
-        print(f"Sent digest with {len(fresh)} clusters.")
+        print(f"دایجست با {len(fresh)} گروه خبری ارسال شد.")
         return 0
 
     if args.mode == "report":
@@ -1866,13 +1870,13 @@ def main() -> int:
                     "disable_web_page_preview": True,
                 },
             )
-        print(f"Sent daily report with {len(fresh)} clusters.")
+        print(f"گزارش روزانه با {len(fresh)} گروه خبری ارسال شد.")
         return 0
 
     for cluster in fresh:
         send_cluster(token, chat_id, cluster, conn)
         mark_seen(conn, cluster)
-    print(f"Sent {len(fresh)} clusters.")
+    print(f"{len(fresh)} گروه خبری ارسال شد.")
     return 0
 
 
