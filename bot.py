@@ -589,12 +589,42 @@ def caption_summary(cluster: StoryCluster) -> str:
     return base
 
 
+def farsi_brief(cluster: StoryCluster) -> str:
+    text = f"{cluster.title} {cluster.best_story.summary}".lower()
+    tags = set(cluster.tags)
+    source = cluster.sources[0] if cluster.sources else cluster.best_story.source
+    if re.search(r"fake|fraud|scam|warn|booking|کلاهبرداری|احتيال|مزيف", text, re.I):
+        topic = "هشداری درباره کلاهبرداری یا ریسک امنیتی برای ساکنان دبی."
+    elif re.search(r"(return|returned|found|honesty|أمانت|عثر|سلم|سلّم)", text, re.I) and re.search(
+        r"\baed\b|\bdh\b|dirham|درهم|100,?000|100 ألف", text, re.I
+    ):
+        topic = "یک خبر مثبت محلی درباره امانت داری و بازگرداندن پول در دبی."
+    elif re.search(r"solidarity|condolence|condemns|foreign|minister|تعزي|تتضامن|يدين", text, re.I):
+        topic = "امارات درباره این اتفاق پیام همبستگی، تسلیت یا موضع رسمی اعلام کرده است."
+    elif "crime" in tags:
+        topic = "خبری مرتبط با پلیس، دادگاه، امنیت عمومی یا هشدار به مردم."
+    elif "rules" in tags:
+        topic = "تغییری کاربردی در قوانین، ویزا، جریمه ها یا خدمات شهری امارات."
+    elif "weather/traffic" in tags:
+        topic = "اطلاع رسانی مهم درباره آب وهوا، جاده ها، ترافیک یا رفت وآمد روزانه."
+    elif "lifestyle" in tags:
+        topic = "موضوعی مناسب برای سبک زندگی، رویدادها، رستوران ها یا برنامه های آخر هفته در دبی."
+    elif "viral" in tags:
+        topic = "موضوعی که احتمال دارد در شبکه های اجتماعی درباره دبی وایرال شود."
+    elif "business" in tags:
+        topic = "خبری درباره بازار، اقتصاد، ملک، سرمایه گذاری یا کسب وکار در دبی."
+    else:
+        topic = "یک به روزرسانی تازه و قابل توجه درباره دبی یا امارات."
+    return f"خلاصه فارسی: {topic} منبع اصلی: {source}."
+
+
 def fallback_editorial_package(cluster: StoryCluster) -> dict[str, str]:
     summary = caption_summary(cluster)
     idea = post_suggestion(cluster)
     return {
         "headline": clean_text(cluster.title, 120),
         "caption": summary,
+        "farsi": farsi_brief(cluster),
         "post_idea": idea,
         "carousel_title": clean_text(cluster.title, 70),
         "why_care": why_care(cluster),
@@ -969,6 +999,7 @@ def format_cluster(cluster: StoryCluster, conn: sqlite3.Connection | None = None
         f"{html.escape(reasons)}"
         f"{summary}\n\n"
         f"<b>Caption:</b> {html.escape(editorial['caption'])}\n\n"
+        f"<b>Farsi:</b> {html.escape(editorial['farsi'])}\n\n"
         f"<b>Post idea:</b> {html.escape(editorial['post_idea'])}\n"
         f"<b>Why care:</b> {html.escape(editorial['why_care'])}\n"
         f"<b>Calendar:</b> {html.escape(editorial['calendar_slot'])}\n\n"
@@ -993,6 +1024,7 @@ def format_digest(clusters: list[StoryCluster], conn: sqlite3.Connection | None 
                 f"<b>{idx}. {html.escape(editorial['headline'])}</b>",
                 f"{html.escape(source_line)} | score {cluster.score} | {html.escape(tags)}",
                 f"Caption: {html.escape(editorial['caption'])}",
+                f"Farsi: {html.escape(editorial['farsi'])}",
                 f"Idea: {html.escape(editorial['post_idea'])}",
                 f"Calendar: {html.escape(editorial['calendar_slot'])}",
                 f"<a href=\"{html.escape(best.link)}\">Open lead source</a>",
@@ -1148,6 +1180,7 @@ def format_daily_report(clusters: list[StoryCluster], conn: sqlite3.Connection |
     for idx, cluster in enumerate(clusters[:8], 1):
         editorial = ai_editorial_package(conn, cluster)
         lines.append(f"{idx}. {html.escape(editorial['headline'])} | {cluster.score} | {', '.join(cluster.tags[:3])}")
+        lines.append(html.escape(editorial["farsi"]))
     lines.extend(["", "<b>Trend Signals</b>"])
     lines.extend(html.escape(line) for line in trend_lines(clusters))
     lines.extend(["", "<b>Content Calendar</b>"])
@@ -1185,6 +1218,7 @@ def help_text() -> str:
             "Tap Approve/Skip/Rewrite/Later to manage editorial workflow.",
             "Every alert includes source links; clustered alerts can include up to four source links.",
             "When an article image is found, it is sent before the full alert.",
+            "Every news item includes a short Farsi brief for quick caption planning.",
             "",
             "Alert types:",
             "Breaking alerts send high-score stories quickly.",
@@ -1398,6 +1432,7 @@ def main() -> int:
             print(f"    reasons: {', '.join(cluster.reasons)}")
             editorial = ai_editorial_package(conn, cluster)
             print(f"    caption: {editorial['caption']}")
+            print(f"    farsi: {editorial['farsi']}")
             print(f"    idea: {editorial['post_idea']}")
             print(f"    why: {editorial['why_care']}")
             print(f"    calendar: {editorial['calendar_slot']}")
