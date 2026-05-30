@@ -777,10 +777,8 @@ def farsi_title_and_summary(cluster: StoryCluster) -> tuple[str, str, str]:
 
 
 def farsi_brief(cluster: StoryCluster) -> str:
-    source = cluster.sources[0] if cluster.sources else cluster.best_story.source
-    source_text = farsi_source_name(source)
-    title, full_summary, caption = farsi_title_and_summary(cluster)
-    return f"عنوان فارسی: {title}\nخلاصه کامل: {full_summary}\nکپشن کوتاه: {caption}\nمنبع: {source_text}."
+    _, full_summary, _ = farsi_title_and_summary(cluster)
+    return f"خلاصه کامل: {full_summary}"
 
 
 def fallback_editorial_package(cluster: StoryCluster) -> dict[str, str]:
@@ -891,7 +889,7 @@ def image_prompt(cluster: StoryCluster) -> str:
 
 
 def persian_social_pack(cluster: StoryCluster) -> str:
-    title, summary, caption = farsi_title_and_summary(cluster)
+    _, _, _ = farsi_title_and_summary(cluster)
     tags = set(cluster.tags)
     if "crime" in tags:
         hook = "جزئیات این پرونده پلیسی در دبی را کوتاه و روشن ببینید."
@@ -916,11 +914,8 @@ def persian_social_pack(cluster: StoryCluster) -> str:
         hashtags.append("#آب_وهوای_امارات")
     elif "lifestyle" in tags:
         hashtags.append("#زندگی_در_دبی")
-    carousel = f"{title}؛ {summary}"
     return "\n".join(
         [
-            f"کپشن کوتاه: {caption}",
-            f"کپشن کاروسل: {clean_text(carousel, 420)}",
             f"هوک ریل: {hook}",
             f"هشتگ ها: {' '.join(hashtags[:4])}",
         ]
