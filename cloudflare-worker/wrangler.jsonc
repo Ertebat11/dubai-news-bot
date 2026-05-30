@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dubai-news-bot-cron",
+  "main": "src/index.js",
+  "compatibility_date": "2026-05-30",
+  "triggers": {
+    "crons": ["13,43 * * * *"]
+  },
+  "vars": {
+    "GITHUB_OWNER": "Ertebat11",
+    "GITHUB_REPO": "dubai-news-bot",
+    "GITHUB_WORKFLOW_FILE": "news-bot.yml",
+    "GITHUB_REF": "main"
+  }
+}

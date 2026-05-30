@@ -2,11 +2,13 @@ name: Dubai news bot
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "7,37 * * * *"
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+concurrency:
+  group: dubai-news-bot-breaking
+  cancel-in-progress: false
 
 jobs:
   send-news:

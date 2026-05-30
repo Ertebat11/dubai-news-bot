@@ -22,8 +22,8 @@ Yes, for a useful MVP:
 
 - Telegram Bot API is free to use.
 - RSS/news feeds and public news pages are usually free for a lightweight personal alert bot.
-- GitHub Actions can run scheduled jobs for free in public repositories, with limits.
-- Cloudflare Workers is another free option for a lightweight scheduled version.
+- GitHub Actions can run jobs for free in public repositories, with limits.
+- Cloudflare Workers Cron can trigger the GitHub job on a more reliable free schedule.
 
 The hard part is Instagram. Public Instagram scraping is unreliable and can violate platform terms. A safer approach is:
 
@@ -94,17 +94,37 @@ Every alert includes story links. Single alerts can include up to four source li
 When the source exposes an image, the bot sends the image before the full alert and includes the image URL in the story message.
 Every story also includes a Farsi brief with the headline, story context, and a suggested caption angle.
 
-## Free scheduled deployment with GitHub Actions
+## Free deployment with GitHub Actions
 
 1. Push this folder to a GitHub repository.
 2. In repository settings, add Actions secrets:
    - `TELEGRAM_BOT_TOKEN`
    - `TELEGRAM_CHAT_ID`
 3. Enable Actions.
-4. The workflow in `.github/workflows/news-bot.yml` runs breaking alerts at minute 7 and 37 each hour and processes feedback/social links.
+4. The workflow in `.github/workflows/news-bot.yml` sends breaking alerts and processes feedback/social links when it is triggered manually or by Cloudflare.
 5. The workflow in `.github/workflows/daily-digest.yml` sends a digest at about 10:07 AM and 7:07 PM Dubai time.
 6. The workflow in `.github/workflows/daily-report.yml` sends a daily intelligence report at about 8:37 AM Dubai time.
 7. The workflow in `.github/workflows/daily-heartbeat.yml` sends one daily alive/status message at about 1:17 PM Dubai time even if no breaking alert was sent.
+
+## Reliable free breaking-alert schedule with Cloudflare
+
+GitHub scheduled workflows can run late or be skipped during high load. For breaking alerts, use the Cloudflare Worker in `cloudflare-worker/` to trigger GitHub Actions instead.
+
+The Worker runs at minute `13` and `43` every hour:
+
+```text
+13,43 * * * *
+```
+
+Setup summary:
+
+1. Create a GitHub fine-grained personal access token for `Ertebat11/dubai-news-bot`.
+2. Give it `Actions: Read and write`.
+3. Deploy `cloudflare-worker/` with Wrangler.
+4. Add the token as the Cloudflare Worker secret `GITHUB_TOKEN`.
+5. Add any long random password as `RUN_SECRET`.
+
+See `cloudflare-worker/README.md` for the exact commands.
 
 Free editorial mode:
 
