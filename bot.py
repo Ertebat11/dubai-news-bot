@@ -736,6 +736,9 @@ def fallback_editorial_package(cluster: StoryCluster) -> dict[str, str]:
         "farsi": farsi_brief(cluster),
         "post_idea": idea,
         "image_suggestion": image_suggestion(cluster),
+        "image_prompt": image_prompt(cluster),
+        "persian_social": persian_social_pack(cluster),
+        "priority": priority_label(cluster),
         "carousel_title": clean_text(cluster.title, 70),
         "why_care": why_care(cluster),
         "calendar_slot": calendar_slot(cluster),
@@ -797,6 +800,65 @@ def image_suggestion(cluster: StoryCluster) -> str:
     if "crime" in tags:
         return "HD original image idea: neutral public-safety visual with blurred Dubai street, police-light color accents, phone alert on screen, no crime scene, no identifiable people."
     return "HD original image idea: clean editorial Dubai city image connected to the story theme, modern high-resolution magazine style, original composition, no logos, no copied news photo."
+
+
+def image_prompt(cluster: StoryCluster) -> str:
+    suggestion = image_suggestion(cluster).replace("HD original image idea:", "").strip()
+    return (
+        f"{suggestion} Create a high-quality HD editorial social media image, vertical 4:5 aspect ratio, "
+        "premium Dubai online magazine style, realistic but original, sharp details, natural lighting, "
+        "no text overlay, no logos, no watermarks, no copied news photo, no recognizable private individuals."
+    )
+
+
+def persian_social_pack(cluster: StoryCluster) -> str:
+    title, summary, caption = farsi_title_and_summary(cluster)
+    tags = set(cluster.tags)
+    if "viral" in tags:
+        hook = "به نظرتون این سوژه در دبی چرا اینقدر سریع وایرال می شود؟"
+    elif "weather/traffic" in tags:
+        hook = "اگر امروز در امارات برنامه بیرون رفتن دارید، این خبر را از دست ندهید."
+    elif "crime" in tags:
+        hook = "این خبر یک یادآوری مهم برای امنیت و احتیاط روزمره است."
+    elif "business" in tags:
+        hook = "این عددها فقط خبر اقتصادی نیستند؛ می توانند روی بازار و زندگی روزمره اثر بگذارند."
+    elif "rules" in tags:
+        hook = "این تغییر ممکن است برای سفر، رانندگی یا کارهای روزمره شما مهم باشد."
+    else:
+        hook = "یک خبر تازه از امارات که ارزش دنبال کردن دارد."
+    hashtags = ["#دبی", "#امارات", "#اخبار_دبی"]
+    if "viral" in tags:
+        hashtags.append("#دبی_وایرال")
+    elif "business" in tags:
+        hashtags.append("#اقتصاد_امارات")
+    elif "weather/traffic" in tags:
+        hashtags.append("#آب_وهوای_امارات")
+    elif "crime" in tags:
+        hashtags.append("#امنیت_دبی")
+    elif "lifestyle" in tags:
+        hashtags.append("#زندگی_در_دبی")
+    carousel = f"{title}؛ {summary}"
+    return "\n".join(
+        [
+            f"کپشن کوتاه: {caption}",
+            f"کپشن کاروسل: {clean_text(carousel, 420)}",
+            f"هوک ریل: {hook}",
+            f"هشتگ ها: {' '.join(hashtags[:4])}",
+        ]
+    )
+
+
+def priority_label(cluster: StoryCluster) -> str:
+    tags = set(cluster.tags)
+    if cluster.score >= 18 or len(cluster.sources) >= 3:
+        return "POST NOW"
+    if "viral" in tags and cluster.score >= 14:
+        return "VIRAL POTENTIAL"
+    if "breaking" in tags or "weather/traffic" in tags or "crime" in tags:
+        return "POST TODAY"
+    if "business" in tags or "rules" in tags:
+        return "EXPLAINER"
+    return "SAVE FOR ROUNDUP"
 
 
 def why_care(cluster: StoryCluster) -> str:
@@ -1136,8 +1198,11 @@ def format_cluster(cluster: StoryCluster, conn: sqlite3.Connection | None = None
         f"{summary}\n\n"
         f"<b>Caption:</b> {html.escape(editorial['caption'])}\n\n"
         f"<b>Farsi:</b> {html.escape(editorial['farsi'])}\n\n"
+        f"<b>Persian social:</b>\n{html.escape(editorial['persian_social'])}\n\n"
+        f"<b>Priority:</b> {html.escape(editorial['priority'])}\n"
         f"<b>Post idea:</b> {html.escape(editorial['post_idea'])}\n"
         f"<b>Suggested post image:</b> {html.escape(editorial['image_suggestion'])}\n"
+        f"<b>Image prompt:</b> {html.escape(editorial['image_prompt'])}\n"
         f"<b>Why care:</b> {html.escape(editorial['why_care'])}\n"
         f"<b>Calendar:</b> {html.escape(editorial['calendar_slot'])}\n\n"
         f"<b>Article image:</b> {html.escape(cluster_image_url(cluster) or 'No image found')}\n\n"
@@ -1159,12 +1224,40 @@ def format_digest(clusters: list[StoryCluster], conn: sqlite3.Connection | None 
         lines.extend(
             [
                 f"<b>{idx}. {html.escape(editorial['headline'])}</b>",
-                f"{html.escape(source_line)} | score {cluster.score} | {html.escape(tags)}",
+                f"{html.escape(source_line)} | score {cluster.score} | {html.escape(tags)} | {html.escape(editorial['priority'])}",
                 f"Caption: {html.escape(editorial['caption'])}",
                 f"Farsi: {html.escape(editorial['farsi'])}",
+                f"Persian social: {html.escape(editorial['persian_social'])}",
                 f"Idea: {html.escape(editorial['post_idea'])}",
                 f"Image idea: {html.escape(editorial['image_suggestion'])}",
+                f"Image prompt: {html.escape(editorial['image_prompt'])}",
                 f"Calendar: {html.escape(editorial['calendar_slot'])}",
+                f"<a href=\"{html.escape(best.link)}\">Open lead source</a>",
+                "",
+            ]
+        )
+    return "\n".join(lines).strip()
+
+
+def format_today(clusters: list[StoryCluster], conn: sqlite3.Connection | None = None, limit: int = 5) -> str:
+    lines = [
+        "<b>Today Post Plan</b>",
+        "Top stories to post now or prepare for today.",
+        "",
+    ]
+    for idx, cluster in enumerate(clusters[:limit], 1):
+        best = cluster.best_story
+        editorial = ai_editorial_package(conn, cluster)
+        source_line = ", ".join(cluster.sources[:3])
+        tags = ", ".join(cluster.tags[:3])
+        lines.extend(
+            [
+                f"<b>{idx}. {html.escape(editorial['priority'])}: {html.escape(editorial['headline'])}</b>",
+                f"{html.escape(source_line)} | score {cluster.score} | {html.escape(tags)}",
+                f"<b>Persian</b>\n{html.escape(editorial['farsi'])}",
+                f"<b>Persian social</b>\n{html.escape(editorial['persian_social'])}",
+                f"<b>Image prompt</b>\n{html.escape(editorial['image_prompt'])}",
+                f"<b>Post idea:</b> {html.escape(editorial['post_idea'])}",
                 f"<a href=\"{html.escape(best.link)}\">Open lead source</a>",
                 "",
             ]
@@ -1199,6 +1292,48 @@ def send_cluster(token: str, chat_id: str, cluster: StoryCluster, conn: sqlite3.
             "reply_markup": feedback_keyboard(cluster),
         },
     )
+
+
+def send_today(token: str, chat_id: str, clusters: list[StoryCluster], conn: sqlite3.Connection | None = None, limit: int = 5) -> None:
+    telegram_call(
+        token,
+        "sendMessage",
+        {
+            "chat_id": chat_id,
+            "text": "<b>Today Post Plan</b>\nTop stories to post now or prepare for today.",
+            "parse_mode": "HTML",
+        },
+    )
+    for idx, cluster in enumerate(clusters[:limit], 1):
+        best = cluster.best_story
+        editorial = ai_editorial_package(conn, cluster)
+        source_line = ", ".join(cluster.sources[:3])
+        tags = ", ".join(cluster.tags[:3])
+        text = "\n".join(
+            [
+                f"<b>{idx}. {html.escape(editorial['priority'])}: {html.escape(editorial['headline'])}</b>",
+                f"{html.escape(source_line)} | score {cluster.score} | {html.escape(tags)}",
+                "",
+                f"<b>Persian</b>\n{html.escape(editorial['farsi'])}",
+                "",
+                f"<b>Persian social</b>\n{html.escape(editorial['persian_social'])}",
+                "",
+                f"<b>Image prompt</b>\n{html.escape(editorial['image_prompt'])}",
+                "",
+                f"<b>Post idea:</b> {html.escape(editorial['post_idea'])}",
+                f"<a href=\"{html.escape(best.link)}\">Open lead source</a>",
+            ]
+        )
+        telegram_call(
+            token,
+            "sendMessage",
+            {
+                "chat_id": chat_id,
+                "text": text,
+                "parse_mode": "HTML",
+                "disable_web_page_preview": False,
+            },
+        )
 
 
 def send_digest(token: str, chat_id: str, clusters: list[StoryCluster], conn: sqlite3.Connection | None = None) -> None:
@@ -1317,9 +1452,11 @@ def format_daily_report(clusters: list[StoryCluster], conn: sqlite3.Connection |
     ]
     for idx, cluster in enumerate(clusters[:8], 1):
         editorial = ai_editorial_package(conn, cluster)
-        lines.append(f"{idx}. {html.escape(editorial['headline'])} | {cluster.score} | {', '.join(cluster.tags[:3])}")
+        lines.append(f"{idx}. {html.escape(editorial['headline'])} | {cluster.score} | {', '.join(cluster.tags[:3])} | {html.escape(editorial['priority'])}")
         lines.append(html.escape(editorial["farsi"]))
+        lines.append(html.escape(editorial["persian_social"]))
         lines.append(f"Image idea: {html.escape(editorial['image_suggestion'])}")
+        lines.append(f"Image prompt: {html.escape(editorial['image_prompt'])}")
     lines.extend(["", "<b>Trend Signals</b>"])
     lines.extend(html.escape(line) for line in trend_lines(clusters))
     lines.extend(["", "<b>Content Calendar</b>"])
@@ -1358,6 +1495,7 @@ def help_text() -> str:
             "/sources - Show active news sources",
             "/saved - Review saved Instagram/TikTok/X leads",
             "/delete saved 3 - Remove a saved lead",
+            "/today - Top 5 post-ready stories with Persian captions and image prompts",
             "/digest - Send the current top digest",
             "/digest lifestyle - Restaurants, events, malls, pop-ups, weekend ideas",
             "/digest viral - Viral, social, watch/video, influencer-style stories",
@@ -1378,6 +1516,7 @@ def help_text() -> str:
             "Every alert includes source links; clustered alerts can include up to four source links.",
             "When an article image is found, it is sent before the full alert.",
             "Every alert includes a separate HD image suggestion for an original post image.",
+            "Every alert includes an AI-ready image prompt, priority label, and Persian social caption pack.",
             "Every news item includes Persian: one-line title, fuller story summary, and short caption.",
             "",
             "Alert types:",
@@ -1474,6 +1613,13 @@ def process_updates(
             term = text.split(" ", 1)[1]
             removed = remove_watch_term(conn, term)
             telegram_call(token, "sendMessage", {"chat_id": chat_id, "text": "Removed." if removed else "That term was not on the watchlist."})
+            continue
+        if text.startswith("/today") and chat_id:
+            clusters = apply_watch_boost(build_digest_clusters(config, hours, min_score, 20, None), list_watch_terms(conn))
+            if not clusters:
+                telegram_call(token, "sendMessage", {"chat_id": chat_id, "text": "No strong post-ready stories found right now."})
+                continue
+            send_today(token, chat_id, clusters, conn)
             continue
         if text.startswith("/digest") and chat_id:
             category = digest_category_from_text(text)
@@ -1596,8 +1742,11 @@ def main() -> int:
             editorial = ai_editorial_package(conn, cluster)
             print(f"    caption: {editorial['caption']}")
             print(f"    farsi: {editorial['farsi']}")
+            print(f"    persian social: {editorial['persian_social']}")
+            print(f"    priority: {editorial['priority']}")
             print(f"    idea: {editorial['post_idea']}")
             print(f"    image suggestion: {editorial['image_suggestion']}")
+            print(f"    image prompt: {editorial['image_prompt']}")
             print(f"    why: {editorial['why_care']}")
             print(f"    calendar: {editorial['calendar_slot']}")
             print(f"    article image: {cluster_image_url(cluster) or 'none'}")
