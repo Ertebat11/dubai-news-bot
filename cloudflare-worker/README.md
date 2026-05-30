@@ -45,9 +45,11 @@ For `RUN_SECRET`, type any long random password. It protects the manual `/run` U
 
 The first deploy creates the Worker and cron trigger. The secrets are added after that.
 
+The Worker is configured as cron-only with `workers_dev = false`, so a public `workers.dev` URL is not required for the automatic schedule.
+
 ## Test
 
-After deploy, run:
+If you later register a `workers.dev` subdomain or custom route, you can test the public endpoints:
 
 ```bash
 curl https://YOUR-WORKER-NAME.YOUR-SUBDOMAIN.workers.dev/health
