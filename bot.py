@@ -22,6 +22,7 @@ from dateutil import parser as date_parser
 
 DEFAULT_CONFIG = "feeds.yaml"
 DEFAULT_DB = "seen.sqlite3"
+TELEGRAM_TEXT_LIMIT = 3900
 
 
 @dataclass
@@ -1253,6 +1254,39 @@ def telegram_call(token: str, method: str, payload: dict[str, Any]) -> dict[str,
     return data
 
 
+def send_html_message(
+    token: str,
+    chat_id: str,
+    text: str,
+    disable_web_page_preview: bool = True,
+    reply_markup: dict[str, Any] | None = None,
+) -> None:
+    lines = text.splitlines()
+    chunks: list[str] = []
+    current = ""
+    for line in lines:
+        candidate = f"{current}\n{line}" if current else line
+        if len(candidate) <= TELEGRAM_TEXT_LIMIT:
+            current = candidate
+            continue
+        if current:
+            chunks.append(current)
+        current = line
+    if current:
+        chunks.append(current)
+
+    for idx, chunk in enumerate(chunks or [text]):
+        payload: dict[str, Any] = {
+            "chat_id": chat_id,
+            "text": chunk,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": disable_web_page_preview,
+        }
+        if idx == 0 and reply_markup:
+            payload["reply_markup"] = reply_markup
+        telegram_call(token, "sendMessage", payload)
+
+
 def feedback_keyboard(cluster: StoryCluster) -> dict[str, Any]:
     return {
         "inline_keyboard": [
@@ -1357,16 +1391,12 @@ def send_cluster(token: str, chat_id: str, cluster: StoryCluster, conn: sqlite3.
             )
         except Exception:
             pass
-    telegram_call(
+    send_html_message(
         token,
-        "sendMessage",
-        {
-            "chat_id": chat_id,
-            "text": format_cluster(cluster, conn),
-            "parse_mode": "HTML",
-            "disable_web_page_preview": False,
-            "reply_markup": feedback_keyboard(cluster),
-        },
+        chat_id,
+        format_cluster(cluster, conn),
+        disable_web_page_preview=False,
+        reply_markup=feedback_keyboard(cluster),
     )
 
 
@@ -1399,29 +1429,11 @@ def send_today(token: str, chat_id: str, clusters: list[StoryCluster], conn: sql
                 f"<a href=\"{html.escape(best.link)}\">لینک خبر</a>",
             ]
         )
-        telegram_call(
-            token,
-            "sendMessage",
-            {
-                "chat_id": chat_id,
-                "text": text,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": False,
-            },
-        )
+        send_html_message(token, chat_id, text, disable_web_page_preview=False)
 
 
 def send_digest(token: str, chat_id: str, clusters: list[StoryCluster], conn: sqlite3.Connection | None = None) -> None:
-    telegram_call(
-        token,
-        "sendMessage",
-        {
-            "chat_id": chat_id,
-            "text": format_digest(clusters, conn),
-            "parse_mode": "HTML",
-            "disable_web_page_preview": False,
-        },
-    )
+    send_html_message(token, chat_id, format_digest(clusters, conn), disable_web_page_preview=False)
 
 
 def discover_chat(token: str) -> int:
@@ -1855,16 +1867,7 @@ def main() -> int:
 
     if args.mode == "report":
         if fresh:
-            telegram_call(
-                token,
-                "sendMessage",
-                {
-                    "chat_id": chat_id,
-                    "text": format_daily_report(fresh, conn),
-                    "parse_mode": "HTML",
-                    "disable_web_page_preview": True,
-                },
-            )
+            send_html_message(token, chat_id, format_daily_report(fresh, conn), disable_web_page_preview=True)
         print(f"گزارش روزانه با {len(fresh)} گروه خبری ارسال شد.")
         return 0
 
