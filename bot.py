@@ -616,6 +616,10 @@ def farsi_digits(value: str) -> str:
 
 
 def farsi_money_detail(text: str) -> str:
+    dollar_match = re.search(r"\$\s*([0-9][0-9,]*)|([0-9][0-9,]*)\s*(?:usd|dollars?|دلار)", text, re.I)
+    if dollar_match:
+        amount = (dollar_match.group(1) or dollar_match.group(2) or "").replace(",", "")
+        return f"{farsi_digits(amount)} دلار" if amount else "مبلغ قابل توجهی"
     match = re.search(r"(?:aed|dh|dirham|درهم)\s*([0-9][0-9,]*)|([0-9][0-9,]*)\s*(?:aed|dh|dirham|درهم)", text, re.I)
     if not match:
         if re.search(r"100\s*ألف|100\s*الف|۱۰۰\s*هزار", text, re.I):
@@ -645,11 +649,33 @@ def farsi_sentence(parts: list[str]) -> str:
     return ". ".join(cleaned) + "."
 
 
+def remove_editorial_commentary(text: str) -> str:
+    blocked = [
+        "اهمیت",
+        "ارزش",
+        "برای مخاطب",
+        "برای صفحه",
+        "برای انتشار",
+        "برای پست",
+        "زاویه",
+        "کپشن",
+        "قابل اشتراک",
+        "شبکه های اجتماعی",
+        "بحث راه بیندازد",
+        "مناسب است",
+        "بهتر است",
+        "خلاصه پست باید",
+        "مخاطب",
+    ]
+    sentences = [part.strip() for part in re.split(r"(?<=[.؟!])\s+", text) if part.strip()]
+    kept = [sentence for sentence in sentences if not any(term in sentence for term in blocked)]
+    return " ".join(kept) if kept else text
+
+
 def farsi_title_and_summary(cluster: StoryCluster) -> tuple[str, str, str]:
     raw_text = f"{cluster.title} {cluster.best_story.summary}"
     text = raw_text.lower()
     tags = set(cluster.tags)
-    coverage = "چند رسانه معتبر همزمان این موضوع را پوشش داده اند، پس ارزش توجه بیشتری دارد. " if len(cluster.sources) > 1 else ""
     if re.search(r"fake|fraud|scam|booking scam|fake booking|کلاهبرداری|احتيال|مزيف", text, re.I):
         if re.search(r"travel|holiday|booking|flight|hotel|summer|سفر|هتل|پرواز", text, re.I):
             title = "هشدار پلیس دبی درباره رزروهای جعلی سفر"
@@ -669,10 +695,19 @@ def farsi_title_and_summary(cluster: StoryCluster) -> tuple[str, str, str]:
             summary = "مقام های امارات تحولات مربوط به ابولا را بررسی کرده اند و تاکید دارند که وضعیت سلامت عمومی در کشور پایدار است. این خبر نشان می دهد نهادهای بهداشتی همچنان وضعیت را زیر نظر دارند و اقدامات آمادگی و پایش ادامه دارد. برای مخاطب، نکته اصلی آرامش همراه با آگاهی است؛ یعنی خبر جنبه هشدار دارد، اما پیام رسمی این است که وضعیت داخلی کنترل و رصد می شود."
             caption = "امارات می گوید وضعیت سلامت عمومی پایدار است و تحولات ابولا را رصد می کند."
     elif re.search(r"(return|returned|found|honesty|أمانت|عثر|سلم|سلّم)", text, re.I) and re.search(
-        r"\baed\b|\bdh\b|dirham|درهم|100,?000|100 ألف|cash|money", text, re.I
+        r"\baed\b|\bdh\b|dirham|درهم|100,?000|100 ألف|cash|money|\$|usd|dollar|gold|bag|airport|traveller|tourist|passenger|ذهب|حقيبة", text, re.I
     ):
         amount = farsi_money_detail(raw_text)
-        if re.search(r"8,?700|8700|250 children", text, re.I):
+        gold_match = re.search(r"([0-9][0-9,]*)\s*(?:grams?|g)\s+of\s+gold|([0-9][0-9,]*)\s*(?:گرم|غرام)\s*(?:طلا|ذهب)", raw_text, re.I)
+        gold_detail = ""
+        if gold_match:
+            gold_amount = (gold_match.group(1) or gold_match.group(2) or "").replace(",", "")
+            gold_detail = f" و {farsi_digits(gold_amount)} گرم طلا"
+        if re.search(r"airport|terminal|flight|traveller|tourist|passenger|فرودگاه|مطار", text, re.I):
+            title = "بازگرداندن کیف گمشده مسافر در فرودگاه دبی"
+            summary = f"پلیس دبی یک کیف گمشده متعلق به یک مسافر را در فرودگاه دبی به صاحبش بازگردانده است. داخل کیف حدود {amount}{gold_detail} گزارش شده بود. بر اساس خبر، کیف پیش از پرواز یا در محدوده ترمینال پیدا شد و نیروهای پلیس برای تحویل آن به مسافر اقدام کردند."
+            caption = "کیف گمشده مسافر با پول و طلا در فرودگاه دبی به صاحبش بازگردانده شد."
+        elif re.search(r"8,?700|8700|250 children", text, re.I):
             title = "هزاران نفر پول پیدا شده را به پلیس امارات تحویل دادند"
             summary = "بر اساس این خبر، بیش از ۸۷۰۰ نفر در سال ۲۰۲۵ پول پیدا شده را در سراسر امارات به پلیس تحویل داده اند و حتی بیش از ۲۵۰ کودک هم در میان این افراد بوده اند. محور اصلی خبر امانت داری، مسئولیت پذیری اجتماعی و اعتماد عمومی است. برای صفحه خبری، این موضوع یک زاویه مثبت و قابل اشتراک دارد چون تصویر خوبی از فرهنگ شهروندی و رفتار درست در امارات نشان می دهد."
             caption = "بیش از ۸۷۰۰ نفر در امارات پول پیدا شده را به پلیس تحویل دادند."
@@ -774,12 +809,12 @@ def farsi_title_and_summary(cluster: StoryCluster) -> tuple[str, str, str]:
         title = "به روزرسانی تازه از دبی و امارات"
         summary = "این یک خبر تازه درباره دبی یا امارات است. خلاصه باید روی خود اتفاق تمرکز کند: چه چیزی اعلام شده، کجا رخ داده، چه کسی درگیر است و نتیجه اولیه خبر چیست."
         caption = "یک خبر تازه از امارات که ارزش دنبال کردن دارد."
-    return title, farsi_sentence([coverage, summary]), caption
+    return title, farsi_sentence([remove_editorial_commentary(summary)]), caption
 
 
 def farsi_brief(cluster: StoryCluster) -> str:
     _, full_summary, _ = farsi_title_and_summary(cluster)
-    return f"خلاصه کامل: {full_summary}"
+    return f"ترجمه کامل خبر: {full_summary}"
 
 
 def fallback_editorial_package(cluster: StoryCluster) -> dict[str, str]:
@@ -1309,16 +1344,13 @@ def feedback_keyboard(cluster: StoryCluster) -> dict[str, Any]:
 def format_cluster(cluster: StoryCluster, conn: sqlite3.Connection | None = None) -> str:
     editorial = ai_editorial_package(conn, cluster)
     title, _, _ = farsi_title_and_summary(cluster)
-    source_line = farsi_sources_line(cluster)
     links = "\n".join(
         f"{idx + 1}. <a href=\"{html.escape(link)}\">{html.escape(urlparse(link).netloc)}</a>"
         for idx, link in enumerate(cluster.links[:4])
     )
     return (
         f"<b>{html.escape(title)}</b>\n"
-        f"منبع: {html.escape(source_line)}\n\n"
         f"{html.escape(editorial['farsi'])}\n\n"
-        f"<b>پک کپشن فارسی:</b>\n{html.escape(editorial['persian_social'])}\n\n"
         f"<b>آماده کپی برای پست:</b>\n{html.escape(editorial['copy_ready'])}\n\n"
         f"<b>لینک خبر:</b>\n"
         f"{links}"
@@ -1335,13 +1367,10 @@ def format_digest(clusters: list[StoryCluster], conn: sqlite3.Connection | None 
         best = cluster.best_story
         editorial = ai_editorial_package(conn, cluster)
         title, _, _ = farsi_title_and_summary(cluster)
-        source_line = farsi_sources_line(cluster, 3)
         lines.extend(
             [
                 f"<b>{farsi_digits(str(idx))}. {html.escape(title)}</b>",
-                f"منبع: {html.escape(source_line)}",
                 html.escape(editorial["farsi"]),
-                f"<b>پک کپشن فارسی:</b>\n{html.escape(editorial['persian_social'])}",
                 f"<b>آماده کپی برای پست:</b>\n{html.escape(editorial['copy_ready'])}",
                 f"<a href=\"{html.escape(best.link)}\">لینک خبر</a>",
                 "",
@@ -1360,13 +1389,10 @@ def format_today(clusters: list[StoryCluster], conn: sqlite3.Connection | None =
         best = cluster.best_story
         editorial = ai_editorial_package(conn, cluster)
         title, _, _ = farsi_title_and_summary(cluster)
-        source_line = farsi_sources_line(cluster, 3)
         lines.extend(
             [
                 f"<b>{farsi_digits(str(idx))}. {html.escape(title)}</b>",
-                f"منبع: {html.escape(source_line)}",
                 html.escape(editorial["farsi"]),
-                f"<b>پک کپشن فارسی:</b>\n{html.escape(editorial['persian_social'])}",
                 f"<b>آماده کپی برای پست:</b>\n{html.escape(editorial['copy_ready'])}",
                 f"<a href=\"{html.escape(best.link)}\">لینک خبر</a>",
                 "",
@@ -1414,15 +1440,10 @@ def send_today(token: str, chat_id: str, clusters: list[StoryCluster], conn: sql
         best = cluster.best_story
         editorial = ai_editorial_package(conn, cluster)
         title, _, _ = farsi_title_and_summary(cluster)
-        source_line = farsi_sources_line(cluster, 3)
         text = "\n".join(
             [
                 f"<b>{farsi_digits(str(idx))}. {html.escape(title)}</b>",
-                f"منبع: {html.escape(source_line)}",
-                "",
                 html.escape(editorial["farsi"]),
-                "",
-                f"<b>پک کپشن فارسی:</b>\n{html.escape(editorial['persian_social'])}",
                 "",
                 f"<b>آماده کپی برای پست:</b>\n{html.escape(editorial['copy_ready'])}",
                 "",
@@ -1520,10 +1541,7 @@ def trend_lines(clusters: list[StoryCluster], limit: int = 8) -> list[str]:
     lines = []
     for idx, cluster in enumerate(trends, 1):
         title, _, _ = farsi_title_and_summary(cluster)
-        lines.append(
-            f"{farsi_digits(str(idx))}. {title} "
-            f"({farsi_digits(str(len(cluster.sources)))} منبع: {farsi_sources_line(cluster, 3)})"
-        )
+        lines.append(f"{farsi_digits(str(idx))}. {title}")
     return lines
 
 
@@ -1547,7 +1565,6 @@ def format_daily_report(clusters: list[StoryCluster], conn: sqlite3.Connection |
         title, _, _ = farsi_title_and_summary(cluster)
         lines.append(f"{farsi_digits(str(idx))}. {html.escape(title)}")
         lines.append(html.escape(editorial["farsi"]))
-        lines.append("<b>پک کپشن فارسی:</b>\n" + html.escape(editorial["persian_social"]))
         lines.append("<b>آماده کپی برای پست:</b>\n" + html.escape(editorial["copy_ready"]))
     lines.extend(["", "<b>ترندها</b>"])
     lines.extend(html.escape(line) for line in trend_lines(clusters))
@@ -1830,9 +1847,7 @@ def main() -> int:
             editorial = ai_editorial_package(conn, cluster)
             title, _, _ = farsi_title_and_summary(cluster)
             print(f"[{cluster.score}] {title}")
-            print(f"    منبع: {farsi_sources_line(cluster)}")
             print(f"    {editorial['farsi']}")
-            print(f"    پک کپشن فارسی: {editorial['persian_social']}")
             print(f"    آماده کپی برای پست: {editorial['copy_ready']}")
             for link in cluster.links[:4]:
                 print(f"    {link}")
