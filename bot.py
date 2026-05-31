@@ -971,7 +971,6 @@ def copy_ready_post_block(cluster: StoryCluster) -> str:
             f"کپشن: {caption}",
             f"هشتگ: {hashtags}",
             f"پرامپت تصویر: {clean_text(image_prompt(cluster), 520)}",
-            f"لینک: {cluster.best_story.link}",
         ]
     )
 
