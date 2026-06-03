@@ -146,10 +146,11 @@ Edit `feeds.yaml`:
 - Add feeds under `sources`.
 - Raise `weight` for sources you trust most.
 - Add English or Arabic keywords under `keywords`.
-- Increase `MIN_SCORE` if the bot sends too much.
-- Decrease `MIN_SCORE` if it misses interesting stories.
+- Default mode is now broad coverage: `MIN_SCORE=3`, `MAX_ITEMS=35`, and the alert workflow uses `BOT_MODE=all` so important items are not missed.
+- Increase `MIN_SCORE` only if the bot sends too much.
+- Increase `MAX_ITEMS` if you want even more stories per run.
 
-The scoring is intentionally editorial: fresh + Dubai/UAE + attention signals + topic keywords.
+The scoring is intentionally editorial: fresh + Dubai/UAE + headline/most-read signals + public-impact topics + topic keywords.
 
 Stories get an extra boost when multiple sources cover the same subject, including Arabic/English matches such as Barq plus Gulf News/ARN coverage of the same event.
 

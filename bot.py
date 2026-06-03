@@ -360,6 +360,12 @@ def keyword_score(text: str, keywords: list[dict[str, Any]]) -> tuple[int, list[
     return score, reasons
 
 
+def passes_geo_filter(title: str, summary: str, link: str, geo_terms: list[str]) -> bool:
+    path = urlparse(link).path
+    combined = f"{title} {summary} {path}".lower()
+    return any(term.lower() in combined for term in geo_terms)
+
+
 STOPWORDS = {
     "the",
     "and",
@@ -418,6 +424,8 @@ CONCEPT_PATTERNS = [
     ("viral", r"viral|trending|watch|video|فيديو|ترند"),
     ("lifestyle", r"restaurant|brunch|hotel|mall|pop-up|popup|concert|festival|karak|مطعم|فندق|مول|فعالية|مهرجان"),
     ("business", r"startup|investment|property|real estate|business|economy|استثمار|عقار|اقتصاد"),
+    ("headline", r"headline|top story|most read|most viewed|most commented|most discussed|exclusive|major|landmark|رئيس|حاكم|حكومة|الأكثر قراءة|ترند"),
+    ("public-impact", r"government|cabinet|minister|authority|law|visa|tax|airport|rta|metro|salik|school|health|hospital|rent|jobs|salary|حكومة|وزير|قانون|تأشيرة|مطار|مدرسة|صحة|مستشفى|إيجار|وظائف|راتب"),
 ]
 
 
@@ -506,6 +514,9 @@ def classify_story(story: Story) -> list[str]:
         ("crime", r"crime|arrest|police|court|robbed|scam|fraud|knife|smuggling|cocaine|شرطة|محكمة|سرقة|احتيال|مخدرات|قبض|مشاجرة"),
         ("breaking", r"breaking|urgent|alert|fire|crash|accident|arrest|police|court|crime|عاجل|شرطة|حادث|حريق"),
         ("viral", r"viral|trending|watch|video|influencer|tiktok|instagram|فيديو|ترند"),
+        ("headlines", r"headline|headlines|top story|main story|most read|most viewed|most commented|most discussed|most shared|popular|exclusive|major|landmark|الأكثر قراءة|الأكثر مشاهدة|الأكثر تعليق|الأكثر تداولا|حصري"),
+        ("discussed", r"most commented|most discussed|most shared|backlash|outrage|debate|sparks debate|raises questions|public reaction|residents react|social media|comments|جدل|ردود فعل|مواقع التواصل"),
+        ("public impact", r"president|ruler|sheikh|government|cabinet|minister|authority|initiative|strategy|law|visa|tax|airport|airline|rta|metro|salik|school|health|hospital|rent|real estate|property|jobs|salary|tourism|economy|gdp|trade|investment|billion|million|رئيس|حاكم|شيخ|حكومة|مجلس الوزراء|وزير|هيئة|مبادرة|استراتيجية|قانون|تأشيرة|مطار|طيران|مدرسة|صحة|مستشفى|إيجار|عقار|وظائف|راتب|اقتصاد|استثمار|مليار|مليون"),
         ("lifestyle", r"restaurant|brunch|hotel|mall|pop-up|popup|concert|festival|weekend|eid|karak|cafe|caf[eé]|steakhouse|pool|bar|nightlife|فعالية|مهرجان"),
         ("rules", r"\b(?:visa|fine|law|rule|permit|salik|parking|metro|rta)\b|تأشيرة|غرامة"),
         ("weather/traffic", r"weather|traffic|rain|heat|dust|road|parking|طقس|ازدحام"),
@@ -526,6 +537,17 @@ DIGEST_ALIASES = {
     "events": "lifestyle",
     "viral": "viral",
     "social": "viral",
+    "headlines": "headlines",
+    "headline": "headlines",
+    "major": "headlines",
+    "topnews": "headlines",
+    "highlevel": "headlines",
+    "discussed": "discussed",
+    "mostread": "headlines",
+    "mostviewed": "headlines",
+    "mostcommented": "discussed",
+    "public": "public impact",
+    "impact": "public impact",
     "crime": "crime",
     "court": "crime",
     "police": "crime",
@@ -699,20 +721,20 @@ def farsi_title_and_summary(cluster: StoryCluster) -> tuple[str, str, str]:
     elif re.search(r"fake|fraud|scam|booking scam|fake booking|کلاهبرداری|احتيال|مزيف", text, re.I):
         if re.search(r"travel|holiday|booking|flight|hotel|summer|سفر|هتل|پرواز", text, re.I):
             title = "هشدار پلیس دبی درباره رزروهای جعلی سفر"
-            summary = "پلیس دبی درباره کلاهبرداری های سفر، بلیت و هتل هشدار داده است؛ مخصوصا پیشنهادهای تابستانی یا تخفیف هایی که در سایت ها و شبکه های اجتماعی جعلی منتشر می شوند. کلاهبرداران با پیشنهادهای فوری و قیمت های وسوسه کننده مردم را به پرداخت برای پرواز یا اقامت ناموجود ترغیب می کنند. نکته مهم این است که مخاطب قبل از پرداخت باید آدرس سایت، صفحه شبکه اجتماعی و واقعی بودن شرکت را بررسی کند."
+            summary = "پلیس دبی درباره کلاهبرداری های سفر، بلیت و هتل هشدار داده است؛ مخصوصا پیشنهادهای تابستانی یا تخفیف هایی که در سایت ها و شبکه های اجتماعی جعلی منتشر می شوند. کلاهبرداران با پیشنهادهای فوری و قیمت های وسوسه کننده مردم را به پرداخت برای پرواز یا اقامت ناموجود ترغیب می کنند. در اطلاع رسانی پلیس تاکید شده که قبل از پرداخت، آدرس سایت، صفحه شبکه اجتماعی و واقعی بودن شرکت بررسی شود."
             caption = "قبل از خرید سفر ارزان، واقعی بودن سایت و شرکت را چک کنید."
         else:
             title = "هشدار تازه درباره کلاهبرداری در امارات"
-            summary = "مقام های رسمی درباره یک روش تازه کلاهبرداری یا پیشنهاد جعلی هشدار داده اند که می تواند برای ساکنان دبی دردسرساز شود. پیام اصلی این است که مردم قبل از پرداخت پول، ارسال اطلاعات شخصی یا کلیک روی لینک ها باید چند نشانه اعتماد را بررسی کنند. این خبر برای مخاطب کاربردی است چون مستقیما به امنیت مالی و رفتار روزمره در فضای آنلاین مربوط می شود."
+            summary = "مقام های رسمی درباره یک روش تازه کلاهبرداری یا پیشنهاد جعلی هشدار داده اند که می تواند برای ساکنان دبی دردسرساز شود. در این هشدار از مردم خواسته شده قبل از پرداخت پول، ارسال اطلاعات شخصی یا کلیک روی لینک ها، چند نشانه اعتماد و رسمی بودن منبع را بررسی کنند."
             caption = "اگر پیشنهادی بیش از حد خوب به نظر می رسد، اول آن را بررسی کنید."
     elif re.search(r"ebola|ابولا", text, re.I):
         if re.search(r"travel warning|travel advisory|uganda|congo|south sudan|اوگاندا|کنگو|سودان جنوبی|twajudi", text, re.I):
             title = "هشدار سفر امارات درباره شیوع ابولا"
-            summary = "امارات به شهروندان خود درباره سفر غیرضروری به اوگاندا، جمهوری دموکراتیک کنگو و سودان جنوبی به دلیل تحولات مربوط به ابولا هشدار داده است. در این اطلاعیه از مسافران خواسته شده در صورت نیاز به سفر، احتیاط کنند و از خدمات رسمی مانند تواجدي برای ثبت اطلاعات سفر استفاده کنند. اهمیت خبر برای مخاطب این است که هم جنبه سلامت عمومی دارد و هم می تواند روی برنامه سفر، امنیت مسافران و تصمیم خانواده ها اثر بگذارد."
+            summary = "امارات به شهروندان خود درباره سفر غیرضروری به اوگاندا، جمهوری دموکراتیک کنگو و سودان جنوبی به دلیل تحولات مربوط به ابولا هشدار داده است. در این اطلاعیه از مسافران خواسته شده در صورت نیاز به سفر، احتیاط کنند و از خدمات رسمی مانند تواجدي برای ثبت اطلاعات سفر استفاده کنند."
             caption = "امارات درباره سفر به چند کشور آفریقایی به دلیل ابولا هشدار داد."
         else:
             title = "بررسی وضعیت ابولا و آمادگی سلامت در امارات"
-            summary = "مقام های امارات تحولات مربوط به ابولا را بررسی کرده اند و تاکید دارند که وضعیت سلامت عمومی در کشور پایدار است. این خبر نشان می دهد نهادهای بهداشتی همچنان وضعیت را زیر نظر دارند و اقدامات آمادگی و پایش ادامه دارد. برای مخاطب، نکته اصلی آرامش همراه با آگاهی است؛ یعنی خبر جنبه هشدار دارد، اما پیام رسمی این است که وضعیت داخلی کنترل و رصد می شود."
+            summary = "مقام های امارات تحولات مربوط به ابولا را بررسی کرده اند و تاکید دارند که وضعیت سلامت عمومی در کشور پایدار است. در این اطلاع رسانی آمده که نهادهای بهداشتی همچنان وضعیت را زیر نظر دارند و اقدامات آمادگی و پایش ادامه دارد."
             caption = "امارات می گوید وضعیت سلامت عمومی پایدار است و تحولات ابولا را رصد می کند."
     elif re.search(r"(return|returned|found|honesty|أمانت|عثر|سلم|سلّم)", text, re.I) and re.search(
         r"\baed\b|\bdh\b|dirham|درهم|100,?000|100 ألف|cash|money|\$|usd|dollar|gold|bag|airport|traveller|tourist|passenger|ذهب|حقيبة", text, re.I
@@ -729,20 +751,20 @@ def farsi_title_and_summary(cluster: StoryCluster) -> tuple[str, str, str]:
             caption = "کیف گمشده مسافر با پول و طلا در فرودگاه دبی به صاحبش بازگردانده شد."
         elif re.search(r"8,?700|8700|250 children", text, re.I):
             title = "هزاران نفر پول پیدا شده را به پلیس امارات تحویل دادند"
-            summary = "بر اساس این خبر، بیش از ۸۷۰۰ نفر در سال ۲۰۲۵ پول پیدا شده را در سراسر امارات به پلیس تحویل داده اند و حتی بیش از ۲۵۰ کودک هم در میان این افراد بوده اند. محور اصلی خبر امانت داری، مسئولیت پذیری اجتماعی و اعتماد عمومی است. برای صفحه خبری، این موضوع یک زاویه مثبت و قابل اشتراک دارد چون تصویر خوبی از فرهنگ شهروندی و رفتار درست در امارات نشان می دهد."
+            summary = "بر اساس این خبر، بیش از ۸۷۰۰ نفر در سال ۲۰۲۵ پول پیدا شده را در سراسر امارات به پلیس تحویل داده اند و حتی بیش از ۲۵۰ کودک هم در میان این افراد بوده اند. گزارش پلیس این موارد را به عنوان نمونه هایی از تحویل اموال گمشده و همکاری شهروندان ثبت کرده است."
             caption = "بیش از ۸۷۰۰ نفر در امارات پول پیدا شده را به پلیس تحویل دادند."
         else:
             title = "رفتار تحسین برانگیز در دبی پس از پیدا شدن پول"
-            summary = f"این یک خبر مثبت محلی از دبی است؛ فردی {amount} یا یک مال گمشده را پیدا کرده و آن را به پلیس یا صاحبش برگردانده است. ماجرا روی امانت داری، اعتماد اجتماعی و واکنش مثبت پلیس یا جامعه تمرکز دارد. ارزش محتوایی آن در این است که تصویر انسانی و قابل اشتراک گذاری از زندگی روزمره در دبی می سازد."
+            summary = f"این خبر درباره پیدا شدن {amount} یا یک مال گمشده در دبی است که به پلیس یا صاحب آن بازگردانده شده است. پلیس یا مقام مربوطه این اقدام را ثبت کرده و جزئیات تحویل مال گمشده را اعلام کرده است."
             caption = "یک یادآوری خوب از امانت داری و اعتماد در دبی."
     elif re.search(r"solidarity|condolence|condemns|foreign|minister|تعزي|تتضامن|يدين", text, re.I):
         if re.search(r"kenya|fire|school|dormitory|کنیا|حریق|آتش", text, re.I):
             title = "همدردی امارات با کنیا پس از حادثه آتش سوزی"
-            summary = "امارات پس از آتش سوزی مرگبار در یک خوابگاه دختران در کنیا، پیام همبستگی و تسلیت منتشر کرده است. این خبر بیشتر جنبه انسانی و دیپلماتیک دارد و نشان می دهد امارات به صورت رسمی با قربانیان، خانواده ها و دولت کنیا ابراز همدردی کرده است. برای صفحه خبری، زاویه اصلی می تواند همدلی، احترام و واکنش رسمی امارات باشد."
+            summary = "امارات پس از آتش سوزی مرگبار در یک خوابگاه دختران در کنیا، پیام همبستگی و تسلیت منتشر کرده است. در بیانیه رسمی، امارات با قربانیان، خانواده ها و دولت کنیا ابراز همدردی کرده است."
             caption = "امارات در پی حادثه تلخ کنیا پیام همدردی منتشر کرد."
         else:
             title = "موضع رسمی امارات درباره یک رویداد بین المللی"
-            summary = "امارات در واکنش به یک اتفاق مهم بین المللی پیام همبستگی، تسلیت، محکومیت یا موضع رسمی منتشر کرده است. اهمیت خبر در نقش دیپلماسی امارات و پیام انسانی یا سیاسی این واکنش است. برای مخاطب فارسی زبان، بهتر است خبر با تاکید بر اینکه امارات چه گفته و چرا این واکنش مهم است روایت شود."
+            summary = "امارات در واکنش به یک اتفاق مهم بین المللی پیام همبستگی، تسلیت، محکومیت یا موضع رسمی منتشر کرده است. در خبر، موضع اعلام شده از سوی مقام های امارات و طرف های مرتبط با آن رویداد توضیح داده شده است."
             caption = "واکنش رسمی امارات به یک خبر مهم بین المللی."
     elif "crime" in tags:
         if re.search(r"oud|عود", text, re.I) and re.search(r"theft|stole|steal|stealing|سرق|سرقت", text, re.I):
@@ -754,11 +776,11 @@ def farsi_title_and_summary(cluster: StoryCluster) -> tuple[str, str, str]:
         elif re.search(r"arrest|arrested|قبض|ضبط", text, re.I):
             count = farsi_count_detail(raw_text)
             title = "بازداشت متهمان در یک پرونده پلیسی در دبی"
-            summary = f"در این خبر، پلیس یا مقام های قضایی از بازداشت {count} در ارتباط با یک پرونده امنیتی یا جنایی خبر داده اند. اصل ماجرا درباره شناسایی متهمان، توضیح روش وقوع جرم و اقدام پلیس برای کنترل پرونده است. برای انتشار، خبر باید با خود اتفاق، محل و اقدام رسمی شروع شود، نه با تحلیل کلی درباره اهمیت امنیت."
+            summary = f"در این خبر، پلیس یا مقام های قضایی از بازداشت {count} در ارتباط با یک پرونده امنیتی یا جنایی خبر داده اند. اصل ماجرا درباره شناسایی متهمان، توضیح روش وقوع جرم و اقدام پلیس برای کنترل پرونده است."
             caption = "پلیس دبی از بازداشت متهمان یک پرونده تازه خبر داد."
         elif re.search(r"court|محكمة|دادگاه", text, re.I):
             title = "پرونده تازه در دادگاه های امارات"
-            summary = "این خبر درباره یک پرونده قضایی در امارات است که در آن جزئیات اتهام، حکم یا روند رسیدگی دادگاه مطرح شده است. نکته اصلی برای مخاطب این است که بداند پرونده درباره چه اتفاقی بوده، مقام قضایی چه تصمیمی گرفته و نتیجه آن برای متهمان یا شاکیان چه بوده است."
+            summary = "این خبر درباره یک پرونده قضایی در امارات است که در آن جزئیات اتهام، حکم یا روند رسیدگی دادگاه مطرح شده است. در خلاصه پرونده، نوع اتفاق، تصمیم مقام قضایی و نتیجه اعلام شده برای متهمان یا شاکیان آمده است."
             caption = "یک پرونده قضایی تازه در امارات خبرساز شد."
         else:
             title = "خبر تازه پلیسی یا امنیتی در امارات"
@@ -767,7 +789,7 @@ def farsi_title_and_summary(cluster: StoryCluster) -> tuple[str, str, str]:
     elif "rules" in tags:
         if re.search(r"eswatini|إسواتيني|اسواتيني|visa waiver|mutual visa|الإعفاء المتبادل|تأشيرة الدخول", text, re.I):
             title = "توافق امارات و اسواتینی برای معافیت ویزا"
-            summary = "امارات و پادشاهی اسواتینی تفاهم نامه ای برای معافیت متقابل از شرط ویزای ورود امضا کرده اند. چنین توافق هایی می توانند رفت وآمد، سفرهای کاری و روابط رسمی بین دو کشور را ساده تر کنند. برای مخاطب، نکته اصلی این است که بداند کدام کشورها درگیرند، موضوع ویزا چیست و چرا این تغییر برای سفر یا روابط بین المللی اهمیت دارد."
+            summary = "امارات و پادشاهی اسواتینی تفاهم نامه ای برای معافیت متقابل از شرط ویزای ورود امضا کرده اند. بر اساس این توافق، رفت وآمد میان دو کشور برای دارندگان شرایط اعلام شده ساده تر می شود و روابط رسمی و سفرهای کاری میان دو طرف تسهیل خواهد شد."
             caption = "امارات و اسواتینی برای ساده تر شدن رفت وآمد توافق ویزایی امضا کردند."
         else:
             title = "تغییر یا یادآوری مهم در قوانین و خدمات شهری"
@@ -776,11 +798,11 @@ def farsi_title_and_summary(cluster: StoryCluster) -> tuple[str, str, str]:
     elif "weather/traffic" in tags:
         if re.search(r"41|۴۱|temperature|temperatures|fair skies|ncm|coastal", text, re.I):
             title = "پیش بینی هوای امارات با کاهش دما در مناطق ساحلی"
-            summary = "پیش بینی هواشناسی امارات از آسمان نسبتا صاف و دمای بالا خبر می دهد؛ در ابوظبی دما می تواند به حدود ۴۱ درجه برسد. مرکز ملی هواشناسی همچنین اشاره کرده که روز یکشنبه کاهش دما، به خصوص در مناطق ساحلی، انتظار می رود. اهمیت خبر برای مخاطب در برنامه ریزی روزانه، زمان بیرون رفتن، سفرهای کوتاه و آمادگی برای گرماست."
+            summary = "پیش بینی هواشناسی امارات از آسمان نسبتا صاف و دمای بالا خبر می دهد؛ در ابوظبی دما می تواند به حدود ۴۱ درجه برسد. مرکز ملی هواشناسی همچنین اعلام کرده که روز یکشنبه کاهش دما، به خصوص در مناطق ساحلی، انتظار می رود."
             caption = "هوای امارات همچنان گرم است، اما در مناطق ساحلی کاهش دما پیش بینی شده."
         else:
             title = "اطلاع رسانی کاربردی درباره آب وهوا یا رفت وآمد"
-            summary = "این خبر یک به روزرسانی درباره آب وهوا، جاده ها، ترافیک، پروازها یا رفت وآمد در دبی و امارات است. خلاصه پست باید زمان، مکان و تغییر اصلی را روشن بگوید؛ مثلا دما، بارش، مسیر، تاخیر یا توصیه رسمی که در خبر آمده است."
+            summary = "این خبر یک به روزرسانی درباره آب وهوا، جاده ها، ترافیک، پروازها یا رفت وآمد در دبی و امارات است. جزئیات آن به زمان، مکان و تغییر اصلی مثل دما، بارش، مسیر، تاخیر یا توصیه رسمی مربوط می شود."
             caption = "یک به روزرسانی تازه درباره آب وهوا یا رفت وآمد در امارات."
     elif "lifestyle" in tags:
         if re.search(r"sunset|romantic|restaurants.*sunset|رمانتیک|غروب", text, re.I):
@@ -814,7 +836,7 @@ def farsi_title_and_summary(cluster: StoryCluster) -> tuple[str, str, str]:
     elif "viral" in tags:
         if re.search(r"paragliding|ice-cream|ice cream|landlord", text, re.I):
             title = "چند سوژه وایرال از دبی در یک خبر"
-            summary = "این خبر چند موضوع وایرال و سبک تر از دبی را کنار هم آورده است؛ از حادثه پاراگلایدینگ گرفته تا بستنی رایگان و رفتار مثبت یک صاحبخانه. ارزش این نوع خبر در این است که برای شبکه های اجتماعی سریع، قابل اشتراک و مناسب شروع گفت وگو است. برای صفحه مجله، می توان آن را به شکل یک راندآپ کوتاه از چیزهایی که امروز در دبی سر زبان هاست منتشر کرد."
+            summary = "این خبر چند موضوع وایرال و سبک تر از دبی را کنار هم آورده است؛ از حادثه پاراگلایدینگ گرفته تا بستنی رایگان و رفتار مثبت یک صاحبخانه. گزارش به چند اتفاق کوتاه اشاره دارد که در فضای آنلاین و میان کاربران دبی توجه گرفته اند."
             caption = "از حادثه وایرال تا بستنی رایگان؛ این ها امروز در دبی خبرساز شدند."
         else:
             title = "موضوعی که در دبی پتانسیل وایرال شدن دارد"
@@ -823,7 +845,7 @@ def farsi_title_and_summary(cluster: StoryCluster) -> tuple[str, str, str]:
     elif "business" in tags:
         if re.search(r"gdp|economy|اقتصاد|الناتج المحلي|6\\.2|6,2|1\\.9|1,9|trillion|تريليون", text, re.I):
             title = "رشد تازه اقتصاد امارات"
-            summary = "این خبر می گوید اقتصاد امارات رشد تازه ای ثبت کرده و تولید ناخالص داخلی کشور به سطح بالاتری رسیده است. بخش هایی مثل ساخت وساز، مالی، املاک، گردشگری یا سرمایه گذاری می توانند در این تصویر اقتصادی نقش داشته باشند. نکته مهم برای مخاطب این است که چنین خبرهایی فقط عدد اقتصادی نیستند؛ می توانند روی فرصت های شغلی، بازار ملک، فضای کسب وکار و اعتماد سرمایه گذاران اثر بگذارند."
+            summary = "این خبر می گوید اقتصاد امارات رشد تازه ای ثبت کرده و تولید ناخالص داخلی کشور به سطح بالاتری رسیده است. در گزارش به بخش هایی مثل ساخت وساز، مالی، املاک، گردشگری یا سرمایه گذاری به عنوان بخش های اثرگذار در این رشد اشاره شده است."
             caption = "اقتصاد امارات دوباره خبرساز شد؛ عددها چه پیامی دارند؟"
         else:
             title = "خبر مهم اقتصادی یا کسب وکاری در دبی"
@@ -1075,7 +1097,7 @@ def build_clusters(stories: list[Story], min_similarity: float = 0.55) -> list[S
             )
 
     for cluster in clusters:
-        sources_bonus = min(6, max(0, len(cluster.sources) - 1) * 3)
+        sources_bonus = min(10, max(0, len(cluster.sources) - 1) * 4)
         tags = sorted({tag for story in cluster.stories for tag in classify_story(story)})
         reasons = []
         for story in cluster.stories:
@@ -1133,6 +1155,9 @@ def story_from_page_candidate(
         return None
     link = clean_url(url, source["url"])
     if not url_allowed(link, source):
+        return None
+    geo_terms = [] if source.get("skip_geo_filter") else config.get("require_any_terms", [])
+    if geo_terms and not passes_geo_filter(title, summary, link, geo_terms):
         return None
     url_dt = date_from_url(link)
     published_known = bool(published or url_dt)
@@ -1254,9 +1279,29 @@ def score_story(entry: dict[str, Any], source: dict[str, Any], config: dict[str,
         score += 2
         reasons.append("Dubai/UAE")
 
-    if re.search(r"\b(video|watch|live|breaking|exclusive|viral|trending|most read|most viewed|عاجل|فيديو)\b", text, re.I):
-        score += 2
-        reasons.append("attention signal")
+    if re.search(
+        r"\b(video|watch|live|breaking|exclusive|viral|trending|popular|headline|headlines|top story|most read|most viewed|most commented|most discussed|most shared|عاجل|فيديو|الأكثر قراءة|الأكثر مشاهدة|الأكثر تعليق|الأكثر تداولا|ترند|حصري)\b",
+        text,
+        re.I,
+    ):
+        score += 5
+        reasons.append("headline/engagement signal")
+
+    if re.search(
+        r"\b(president|ruler|sheikh|government|cabinet|minister|authority|initiative|strategy|major|landmark|law|visa|tax|airport|airline|rta|metro|salik|school|health|hospital|tourism|economy|gdp|trade|investment|billion|million)\b|رئيس|حاكم|شيخ|حكومة|مجلس الوزراء|وزير|هيئة|مبادرة|استراتيجية|قانون|تأشيرة|مطار|طيران|مدرسة|صحة|مستشفى|اقتصاد|استثمار|مليار|مليون",
+        text,
+        re.I,
+    ):
+        score += 4
+        reasons.append("high-level public impact")
+
+    if re.search(
+        r"\b(rent|real estate|property|jobs|salary|prices|fees|fine|rules|permit|residents|families|commuters|students|patients|travellers|travelers)\b|إيجار|عقار|وظائف|راتب|أسعار|رسوم|غرامة|تصريح|سكان|طلاب|مرضى|مسافر",
+        text,
+        re.I,
+    ):
+        score += 3
+        reasons.append("resident impact")
 
     return score, reasons[:6]
 
@@ -1283,8 +1328,7 @@ def collect(config: dict[str, Any], hours: int) -> list[Story]:
                 continue
             summary = clean_text(entry.get("summary", "") or entry.get("description", ""))
             geo_terms = [] if source.get("skip_geo_filter") else config.get("require_any_terms", [])
-            combined = f"{title} {summary}".lower()
-            if geo_terms and not any(term.lower() in combined for term in geo_terms):
+            if geo_terms and not passes_geo_filter(title, summary, link, geo_terms):
                 continue
             entry["_published_known"] = True
             score, reasons = score_story(entry, source, config)
@@ -1629,6 +1673,9 @@ def help_text() -> str:
             "/delete saved 3 - حذف یک لینک ذخیره شده",
             "/today - پنج خبر آماده پست با کپشن فارسی و پرامپت تصویر",
             "/digest - ارسال خلاصه خبرهای مهم فعلی",
+            "/digest headlines - خبرهای اصلی، پرخواننده، پربحث و اعلامیه های مهم",
+            "/digest discussed - خبرهای پربحث، پرکامنت، وایرال و دارای واکنش عمومی",
+            "/digest public - خبرهای اثرگذار روی زندگی مردم: قانون، ویزا، اقتصاد، مدرسه، سلامت و حمل ونقل",
             "/digest lifestyle - رستوران، رویداد، مال، پاپ آپ و ایده آخر هفته",
             "/digest viral - خبرهای وایرال و مناسب شبکه اجتماعی",
             "/digest crime - پلیس، دادگاه، کلاهبرداری، دستگیری و امنیت عمومی",
@@ -1649,7 +1696,8 @@ def help_text() -> str:
             "هر خبر شامل عنوان فارسی، خلاصه کامل فارسی، کپشن کوتاه، پک کپشن فارسی، پرامپت تصویر و متن آماده کپی برای پست است.",
             "",
             "ارسال خودکار:",
-            "هشدارها فقط وقتی ارسال می شوند که خبر از حد امتیاز لازم عبور کند.",
+            "هشدارها در حالت گسترده تنظیم شده اند تا خبرهای مهم از دست نروند؛ ممکن است تعداد پیام ها زیاد باشد.",
+            "خبرهای اصلی، پرخواننده، پربحث، چندمنبعی و اثرگذار روی زندگی مردم بالاتر رتبه می گیرند.",
             "دایجست و گزارش روزانه خبرها، ترندها و پیشنهادهای محتوایی را جمع می کنند.",
         ]
     )
@@ -1823,10 +1871,10 @@ def main() -> int:
     parser.add_argument("--config", default=os.getenv("NEWS_CONFIG", DEFAULT_CONFIG))
     parser.add_argument("--db", default=os.getenv("DB_PATH", DEFAULT_DB))
     parser.add_argument("--hours", type=int, default=int(os.getenv("LOOKBACK_HOURS", "24")))
-    parser.add_argument("--limit", type=int, default=int(os.getenv("MAX_ITEMS", "8")))
-    parser.add_argument("--min-score", type=int, default=int(os.getenv("MIN_SCORE", "7")))
-    parser.add_argument("--breaking-score", type=int, default=int(os.getenv("BREAKING_SCORE", "14")))
-    parser.add_argument("--mode", choices=["breaking", "digest", "report", "heartbeat", "all"], default=os.getenv("BOT_MODE", "breaking"))
+    parser.add_argument("--limit", type=int, default=int(os.getenv("MAX_ITEMS", "35")))
+    parser.add_argument("--min-score", type=int, default=int(os.getenv("MIN_SCORE", "3")))
+    parser.add_argument("--breaking-score", type=int, default=int(os.getenv("BREAKING_SCORE", "7")))
+    parser.add_argument("--mode", choices=["breaking", "digest", "report", "heartbeat", "all"], default=os.getenv("BOT_MODE", "all"))
     parser.add_argument("--category", default=os.getenv("DIGEST_CATEGORY"))
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--discover-chat", action="store_true")

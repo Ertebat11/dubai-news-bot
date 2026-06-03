@@ -2,7 +2,7 @@ sources:
   - name: Gulf News UAE
     type: page
     url: https://gulfnews.com/uae
-    include_paths: [/uae]
+    include_paths: [/uae, /business, /business/property, /business/aviation]
     exclude_url_terms: [component]
     weight: 5
     enabled: true
@@ -10,14 +10,14 @@ sources:
   - name: Khaleej Times UAE
     type: page
     url: https://www.khaleejtimes.com/uae
-    include_paths: [/uae, /life-and-living]
+    include_paths: [/uae, /business, /life-and-living]
     weight: 5
     enabled: true
 
   - name: The National UAE
     type: page
     url: https://www.thenationalnews.com/uae/
-    include_paths: [/news/uae]
+    include_paths: [/news/uae, /business, /travel]
     require_url_date: true
     weight: 5
     enabled: true
@@ -51,6 +51,14 @@ sources:
     enabled: true
 
 keywords:
+  - label: headline/public impact
+    weight: 6
+    terms: [headline, headlines, top story, top stories, main story, most read, most viewed, most commented, most discussed, most shared, popular, trending, exclusive, major, landmark, initiative, strategy, sheikh, president, ruler, government, cabinet, minister, authority, billion, million, law, visa, tax, airport, airline, rta, metro, salik, school, hospital, health, property, real estate, rent, jobs, salary, tourism, economy, gdp, trade, investment, الأكثر قراءة, الأكثر مشاهدة, الأكثر تعليق, الأكثر تداولا, ترند, حصري, رئيس, حاكم, شيخ, حكومة, مجلس الوزراء, وزير, هيئة, مبادرة, استراتيجية, قانون, تأشيرة, مطار, طيران, مدرسة, صحة, مستشفى, عقار, إيجار, وظائف, راتب, اقتصاد, استثمار, مليار, مليون]
+
+  - label: most discussed/social reaction
+    weight: 5
+    terms: [most commented, most discussed, most shared, backlash, outrage, debate, sparks debate, raises questions, public reaction, residents react, social media, instagram, tiktok, comments, viral, الأكثر تعليق, الأكثر تداولا, جدل, ردود فعل, مواقع التواصل, انستغرام, تيك توك, ترند]
+
   - label: breaking/public safety
     weight: 5
     terms: [breaking, urgent, alert, fire, crash, accident, crime, arrest, court, police, evacuation, عاجل, شرطة, حريق, حادث]
@@ -65,7 +73,7 @@ keywords:
 
   - label: Dubai life impact
     weight: 4
-    terms: [rent, real estate, traffic, salik, metro, visa, golden visa, school, weather, flight, airport, mall, غرامة, تأشيرة, عقار, طقس]
+    terms: [rent, real estate, traffic, salik, metro, visa, golden visa, school, weather, flight, airport, mall, health, hospital, jobs, salary, tax, fine, law, rule, غرامة, تأشيرة, عقار, إيجار, طقس, صحة, مستشفى, وظيفة, راتب, قانون]
 
   - label: culture/events
     weight: 3

@@ -43,8 +43,8 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           AI_REWRITE: "0"
-          MAX_ITEMS: "8"
-          MIN_SCORE: "7"
-          BREAKING_SCORE: "14"
-          BOT_MODE: "breaking"
-          LOOKBACK_HOURS: "24"
+          MAX_ITEMS: "35"
+          MIN_SCORE: "3"
+          BREAKING_SCORE: "7"
+          BOT_MODE: "all"
+          LOOKBACK_HOURS: "36"
