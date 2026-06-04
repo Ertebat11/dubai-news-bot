@@ -256,6 +256,16 @@ def init_db(path: str) -> sqlite3.Connection:
     )
     conn.execute(
         """
+        CREATE TABLE IF NOT EXISTS translations (
+            text_hash TEXT PRIMARY KEY,
+            source_text TEXT NOT NULL,
+            translated_text TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS watch_terms (
             term TEXT PRIMARY KEY,
             created_at TEXT NOT NULL
@@ -863,6 +873,132 @@ def farsi_brief(cluster: StoryCluster) -> str:
     return f"ترجمه کامل خبر: {full_summary}"
 
 
+def translation_cache_key(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def cached_translation(conn: sqlite3.Connection | None, text: str) -> str | None:
+    if not conn:
+        return None
+    row = conn.execute("SELECT translated_text FROM translations WHERE text_hash = ?", (translation_cache_key(text),)).fetchone()
+    return row[0] if row else None
+
+
+def save_translation(conn: sqlite3.Connection | None, source_text: str, translated_text: str) -> None:
+    if not conn:
+        return
+    conn.execute(
+        "INSERT OR REPLACE INTO translations (text_hash, source_text, translated_text, created_at) VALUES (?, ?, ?, ?)",
+        (translation_cache_key(source_text), source_text, translated_text, utcnow().isoformat()),
+    )
+    conn.commit()
+
+
+def translate_to_farsi(conn: sqlite3.Connection | None, text: str) -> str:
+    text = clean_text(text, 2400)
+    if not text:
+        return ""
+    cached = cached_translation(conn, text)
+    if cached:
+        return cached
+    try:
+        from deep_translator import GoogleTranslator
+
+        translated = clean_text(GoogleTranslator(source="auto", target="fa").translate(text), 2600)
+        if translated:
+            save_translation(conn, text, translated)
+            return translated
+    except Exception:
+        pass
+    return ""
+
+
+def article_excerpt(link: str) -> str:
+    try:
+        resp = requests.get(link, headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
+        resp.raise_for_status()
+    except Exception:
+        return ""
+    soup = BeautifulSoup(resp.text, "html.parser")
+    meta_parts = []
+    for selector in [
+        {"property": "og:description"},
+        {"name": "description"},
+        {"name": "twitter:description"},
+    ]:
+        tag = soup.find("meta", attrs=selector)
+        if tag and tag.get("content"):
+            meta_parts.append(clean_text(tag["content"], 700))
+    paragraphs = []
+    article = soup.find("article") or soup
+    for paragraph in article.find_all("p"):
+        text = clean_text(paragraph.get_text(" ", strip=True), 500)
+        lower = text.lower()
+        if any(
+            blocked in lower
+            for blocked in [
+                "stay up to date",
+                "with the latest news",
+                "follow kt",
+                "whatsapp channels",
+                "read more",
+                "also read",
+                "subscribe",
+                "newsletter",
+                "fajr ",
+                "dhuhr ",
+                "asr ",
+                "maghrib ",
+                "isha ",
+            ]
+        ):
+            continue
+        if len(text) >= 45 and text not in paragraphs:
+            paragraphs.append(text)
+        if len(" ".join(meta_parts + paragraphs)) >= 1200:
+            break
+    return clean_text(" ".join(meta_parts + paragraphs), 2200)
+
+
+def translated_story_parts(conn: sqlite3.Connection | None, cluster: StoryCluster) -> tuple[str, str]:
+    story = cluster.best_story
+    fallback_title, fallback_summary, _ = farsi_title_and_summary(cluster)
+    translated_title = translate_to_farsi(conn, story.title) or fallback_title
+
+    source_body = clean_text(story.summary, 2200)
+    if len(source_body) < 350 or source_body.endswith("..."):
+        source_body = article_excerpt(story.link) or source_body
+    translated_body = translate_to_farsi(conn, source_body) if source_body else ""
+    if not translated_body or translated_body.lower() == clean_text(source_body, 1400).lower():
+        translated_body = fallback_summary
+    if translated_body == translated_title:
+        translated_body = fallback_summary
+    return translated_title, translated_body
+
+
+def story_links_html(cluster: StoryCluster, limit: int = 4) -> str:
+    return "\n".join(
+        f"{idx + 1}. <a href=\"{html.escape(link)}\">{html.escape(urlparse(link).netloc)}</a>"
+        for idx, link in enumerate(cluster.links[:limit])
+    )
+
+
+def format_news_translation(cluster: StoryCluster, conn: sqlite3.Connection | None = None, index: int | None = None) -> str:
+    title, body = translated_story_parts(conn, cluster)
+    prefix = f"{farsi_digits(str(index))}. " if index is not None else ""
+    return "\n".join(
+        [
+            f"<b>{prefix}{html.escape(title)}</b>",
+            "",
+            "<b>ترجمه خبر:</b>",
+            html.escape(body),
+            "",
+            "<b>لینک خبر:</b>",
+            story_links_html(cluster),
+        ]
+    ).strip()
+
+
 def fallback_editorial_package(cluster: StoryCluster) -> dict[str, str]:
     summary = caption_summary(cluster)
     idea = post_suggestion(cluster)
@@ -1356,6 +1492,15 @@ def telegram_call(token: str, method: str, payload: dict[str, Any]) -> dict[str,
     return data
 
 
+def answer_callback_query(token: str, payload: dict[str, Any]) -> None:
+    try:
+        telegram_call(token, "answerCallbackQuery", payload)
+    except Exception:
+        # Telegram callback IDs expire quickly. Feedback is already saved, so a
+        # stale acknowledgement should never block the news workflow.
+        return
+
+
 def send_html_message(
     token: str,
     chat_id: str,
@@ -1409,19 +1554,7 @@ def feedback_keyboard(cluster: StoryCluster) -> dict[str, Any]:
 
 
 def format_cluster(cluster: StoryCluster, conn: sqlite3.Connection | None = None) -> str:
-    editorial = ai_editorial_package(conn, cluster)
-    title, _, _ = farsi_title_and_summary(cluster)
-    links = "\n".join(
-        f"{idx + 1}. <a href=\"{html.escape(link)}\">{html.escape(urlparse(link).netloc)}</a>"
-        for idx, link in enumerate(cluster.links[:4])
-    )
-    return (
-        f"<b>{html.escape(title)}</b>\n"
-        f"{html.escape(editorial['farsi'])}\n\n"
-        f"<b>آماده کپی برای پست:</b>\n{html.escape(editorial['copy_ready'])}\n\n"
-        f"<b>لینک خبر:</b>\n"
-        f"{links}"
-    )
+    return format_news_translation(cluster, conn)
 
 
 def format_digest(clusters: list[StoryCluster], conn: sqlite3.Connection | None = None) -> str:
@@ -1431,40 +1564,18 @@ def format_digest(clusters: list[StoryCluster], conn: sqlite3.Connection | None 
         "",
     ]
     for idx, cluster in enumerate(clusters, 1):
-        best = cluster.best_story
-        editorial = ai_editorial_package(conn, cluster)
-        title, _, _ = farsi_title_and_summary(cluster)
-        lines.extend(
-            [
-                f"<b>{farsi_digits(str(idx))}. {html.escape(title)}</b>",
-                html.escape(editorial["farsi"]),
-                f"<b>آماده کپی برای پست:</b>\n{html.escape(editorial['copy_ready'])}",
-                f"<a href=\"{html.escape(best.link)}\">لینک خبر</a>",
-                "",
-            ]
-        )
+        lines.extend([format_news_translation(cluster, conn, idx), ""])
     return "\n".join(lines).strip()
 
 
 def format_today(clusters: list[StoryCluster], conn: sqlite3.Connection | None = None, limit: int = 5) -> str:
     lines = [
-        "<b>برنامه پست امروز</b>",
-        "بهترین خبرها برای آماده کردن پست امروز.",
+        "<b>خبرهای مهم امروز</b>",
+        "ترجمه فارسی خبرها همراه لینک منبع.",
         "",
     ]
     for idx, cluster in enumerate(clusters[:limit], 1):
-        best = cluster.best_story
-        editorial = ai_editorial_package(conn, cluster)
-        title, _, _ = farsi_title_and_summary(cluster)
-        lines.extend(
-            [
-                f"<b>{farsi_digits(str(idx))}. {html.escape(title)}</b>",
-                html.escape(editorial["farsi"]),
-                f"<b>آماده کپی برای پست:</b>\n{html.escape(editorial['copy_ready'])}",
-                f"<a href=\"{html.escape(best.link)}\">لینک خبر</a>",
-                "",
-            ]
-        )
+        lines.extend([format_news_translation(cluster, conn, idx), ""])
     return "\n".join(lines).strip()
 
 
@@ -1499,25 +1610,12 @@ def send_today(token: str, chat_id: str, clusters: list[StoryCluster], conn: sql
         "sendMessage",
         {
             "chat_id": chat_id,
-            "text": "<b>برنامه پست امروز</b>\nبهترین خبرها برای آماده کردن پست امروز.",
+            "text": "<b>خبرهای مهم امروز</b>\nترجمه فارسی خبرها همراه لینک منبع.",
             "parse_mode": "HTML",
         },
     )
     for idx, cluster in enumerate(clusters[:limit], 1):
-        best = cluster.best_story
-        editorial = ai_editorial_package(conn, cluster)
-        title, _, _ = farsi_title_and_summary(cluster)
-        text = "\n".join(
-            [
-                f"<b>{farsi_digits(str(idx))}. {html.escape(title)}</b>",
-                html.escape(editorial["farsi"]),
-                "",
-                f"<b>آماده کپی برای پست:</b>\n{html.escape(editorial['copy_ready'])}",
-                "",
-                f"<a href=\"{html.escape(best.link)}\">لینک خبر</a>",
-            ]
-        )
-        send_html_message(token, chat_id, text, disable_web_page_preview=False)
+        send_html_message(token, chat_id, format_news_translation(cluster, conn, idx), disable_web_page_preview=False)
 
 
 def send_digest(token: str, chat_id: str, clusters: list[StoryCluster], conn: sqlite3.Connection | None = None) -> None:
@@ -1615,29 +1713,19 @@ def trend_lines(clusters: list[StoryCluster], limit: int = 8) -> list[str]:
 def content_calendar_lines(clusters: list[StoryCluster], conn: sqlite3.Connection | None = None, limit: int = 6) -> list[str]:
     lines = []
     for idx, cluster in enumerate(clusters[:limit], 1):
-        title, _, caption = farsi_title_and_summary(cluster)
-        lines.append(f"{farsi_digits(str(idx))}. {title} - {caption}")
-    return lines or ["فعلا پیشنهادی برای تقویم محتوا پیدا نشد."]
+        title, _ = translated_story_parts(conn, cluster)
+        lines.append(f"{farsi_digits(str(idx))}. {title}")
+    return lines or ["فعلا خبر مهمی برای مرور پیدا نشد."]
 
 
 def format_daily_report(clusters: list[StoryCluster], conn: sqlite3.Connection | None = None) -> str:
-    watch_terms = list_watch_terms(conn) if conn else []
     lines = [
         "<b>گزارش روزانه رادار دبی</b>",
         "",
         "<b>خبرهای مهم</b>",
     ]
     for idx, cluster in enumerate(clusters[:8], 1):
-        editorial = ai_editorial_package(conn, cluster)
-        title, _, _ = farsi_title_and_summary(cluster)
-        lines.append(f"{farsi_digits(str(idx))}. {html.escape(title)}")
-        lines.append(html.escape(editorial["farsi"]))
-        lines.append("<b>آماده کپی برای پست:</b>\n" + html.escape(editorial["copy_ready"]))
-    lines.extend(["", "<b>ترندها</b>"])
-    lines.extend(html.escape(line) for line in trend_lines(clusters))
-    lines.extend(["", "<b>تقویم محتوا</b>"])
-    lines.extend(html.escape(line) for line in content_calendar_lines(clusters, conn))
-    lines.extend(["", "<b>واچ لیست</b>", html.escape("، ".join(watch_terms) if watch_terms else "فعلا موردی ثبت نشده است.")])
+        lines.append(format_news_translation(cluster, conn, idx))
     return "\n".join(lines)
 
 
@@ -1671,7 +1759,7 @@ def help_text() -> str:
             "/sources - نمایش منابع فعال خبر",
             "/saved - مرور لینک های ذخیره شده از اینستاگرام، تیک تاک یا ایکس",
             "/delete saved 3 - حذف یک لینک ذخیره شده",
-            "/today - پنج خبر آماده پست با کپشن فارسی و پرامپت تصویر",
+            "/today - پنج خبر مهم امروز با ترجمه فارسی و لینک خبر",
             "/digest - ارسال خلاصه خبرهای مهم فعلی",
             "/digest headlines - خبرهای اصلی، پرخواننده، پربحث و اعلامیه های مهم",
             "/digest discussed - خبرهای پربحث، پرکامنت، وایرال و دارای واکنش عمومی",
@@ -1683,8 +1771,8 @@ def help_text() -> str:
             "/digest weather - آب وهوا، ترافیک، جاده و هشدارهای روزانه",
             "/digest business - استارتاپ، ملک، سرمایه گذاری و اقتصاد",
             "/trends - خبرهایی که چند منبع پوشش داده اند",
-            "/report - گزارش روزانه برای صفحه مجله",
-            "/calendar - پیشنهاد تقویم محتوایی",
+            "/report - گزارش روزانه خبرها با ترجمه فارسی و لینک منبع",
+            "/calendar - فهرست کوتاه عنوان های مهم برای مرور سریع",
             "/watch rents - اضافه کردن یک کلمه به واچ لیست",
             "/watchlist - نمایش واچ لیست",
             "/unwatch rents - حذف یک کلمه از واچ لیست",
@@ -1692,8 +1780,8 @@ def help_text() -> str:
             "اگر لینک اینستاگرام، تیک تاک یا ایکس را فوروارد کنید، بات آن را به عنوان لید اجتماعی ذخیره می کند.",
             "با دکمه های مفید، کم اهمیت، دیر و بیشتر، رتبه بندی بات بهتر می شود.",
             "هر خبر لینک منبع دارد؛ خبرهای خوشه ای می توانند تا چهار لینک منبع داشته باشند.",
-            "اگر تصویر مقاله پیدا شود، قبل از متن کامل خبر ارسال می شود.",
-            "هر خبر شامل عنوان فارسی، خلاصه کامل فارسی، کپشن کوتاه، پک کپشن فارسی، پرامپت تصویر و متن آماده کپی برای پست است.",
+            "اگر تصویر خود مقاله پیدا شود، قبل از متن خبر ارسال می شود.",
+            "هر خبر فقط شامل عنوان فارسی، ترجمه فارسی خبر و لینک منبع است و هیچ متن اضافی تبلیغاتی ارسال نمی شود.",
             "",
             "ارسال خودکار:",
             "هشدارها در حالت گسترده تنظیم شده اند تا خبرهای مهم از دست نروند؛ ممکن است تعداد پیام ها زیاد باشد.",
@@ -1731,9 +1819,8 @@ def process_updates(
             if len(parts) == 3 and parts[0] == "fb":
                 user = callback.get("from", {})
                 save_feedback(conn, parts[1], parts[2], str(user.get("id")) if user.get("id") else None)
-                telegram_call(
+                answer_callback_query(
                     token,
-                    "answerCallbackQuery",
                     {
                         "callback_query_id": callback["id"],
                         "text": "ثبت شد. رادار از این بازخورد یاد می گیرد.",
@@ -1743,9 +1830,8 @@ def process_updates(
             elif len(parts) == 3 and parts[0] == "act":
                 user = callback.get("from", {})
                 save_approval(conn, parts[1], parts[2], str(user.get("id")) if user.get("id") else None)
-                telegram_call(
+                answer_callback_query(
                     token,
-                    "answerCallbackQuery",
                     {
                         "callback_query_id": callback["id"],
                         "text": "ثبت شد.",
@@ -1915,11 +2001,9 @@ def main() -> int:
             print(format_heartbeat(clusters, len(candidates), conn))
             return 0
         for cluster in fresh:
-            editorial = ai_editorial_package(conn, cluster)
-            title, _, _ = farsi_title_and_summary(cluster)
+            title, body = translated_story_parts(conn, cluster)
             print(f"[{cluster.score}] {title}")
-            print(f"    {editorial['farsi']}")
-            print(f"    آماده کپی برای پست: {editorial['copy_ready']}")
+            print(f"    ترجمه خبر: {body}")
             for link in cluster.links[:4]:
                 print(f"    {link}")
         print(f"{len(fresh)} گروه قابل ارسال از {len(candidates)} خبر و {len(clusters)} گروه خبری.")
